@@ -9,7 +9,7 @@ Vibe is a custom programming language implementation written in Go, featuring a 
 - Strong typing system (int, float, string, bool, arrays, functions)
 - Function definitions and calls with type annotations
 - Arrays and array operations
-- Control flow statements (if/else)
+- Control flow statements (if/else, while, for)
 - Variables and assignment
 - Arithmetic and logical operations
 - Interactive REPL mode
@@ -86,6 +86,10 @@ name = "Vibe"
 pi = 3.14159
 isActive = true
 
+# With type annotations
+age: int = 30
+message: string = "Hello"
+
 # The type system will enforce type safety
 # x = "string" # This would cause a type error
 ```
@@ -94,9 +98,9 @@ isActive = true
 
 ```ruby
 # Function definition with type annotations
-fn add(a: int, b: int): int {
+def add(a: int, b: int): int do
   return a + b
-}
+end
 
 # Function call
 result = add(5, 10)
@@ -107,11 +111,26 @@ puts result  # Outputs: 15
 
 ```ruby
 # If/else statements
-if x > 10 {
+if x > 10
   puts "x is greater than 10"
-} else {
-  puts "x is not greater than 10"
-}
+elsif x > 5
+  puts "x is greater than 5 but not greater than 10"
+else
+  puts "x is not greater than 5"
+end
+
+# While loops
+i = 0
+while i < 5 do
+  puts i
+  i = i + 1
+end
+
+# For loops
+numbers = [1, 2, 3, 4, 5]
+for num in numbers do
+  puts num
+end
 ```
 
 ### Arrays
@@ -122,6 +141,9 @@ numbers = [1, 2, 3, 4, 5]
 
 # Accessing elements (zero-indexed)
 first = numbers[0]  # 1
+
+# Modifying elements
+numbers[2] = 10  # [1, 2, 10, 4, 5]
 ```
 
 ## Examples
@@ -132,6 +154,7 @@ Check out the example programs in the `examples/` directory:
 - `fibonacci.vi` - Fibonacci sequence calculator
 - `minimal_fib.vi` - Minimal Fibonacci implementation
 - `typed_program.vi` - Example demonstrating the type system
+- `for_loop.vi` - Examples of for loops
 
 ## Project Structure
 
