@@ -1,5 +1,7 @@
 # Vibe Programming Language
 
+![Vibe Programming Language Logo](vibe.jpg)
+
 Vibe is a custom programming language implementation written in Go, featuring a lexer, parser, interpreter, and type system. It provides a clean, expressive syntax with strong typing.
 
 ## Features
