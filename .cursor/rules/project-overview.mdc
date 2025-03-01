@@ -1,11 +1,7 @@
 ---
-description: 
-globs: 
-alwaysApply: false
----
----
 description: Comprehensive overview of the Vibe programming language project
 globs: ["**/*.go", "**/*.vi", "**/*.sh"]
+alwaysApply: false
 ---
 
 # Vibe Programming Language Project Overview
@@ -210,7 +206,7 @@ When adding new tokens to the lexer (@lexer/lexer.go):
 // Example of adding a new token
 const (
     // Existing tokens...
-    
+
     // New token
     WHILE = "WHILE"
     DO    = "DO"
@@ -300,15 +296,15 @@ func TestNewFeature(t *testing.T) {
     // Setup
     input := `code with new feature`
     expected := &SomeExpectedValue{}
-    
+
     // Act
     actual := someFunction(input)
-    
+
     // Assert
     if !reflect.DeepEqual(actual, expected) {
         t.Errorf("Expected %v, got %v", expected, actual)
     }
-    
+
     // Edge cases
     edgeCaseInput := `edge case`
     // ...test edge cases
