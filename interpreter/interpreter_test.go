@@ -124,10 +124,9 @@ func TestFunctionApplication(t *testing.T) {
 			// Define a function 'add' that takes two parameters and returns their sum
 			&parser.FunctionDef{
 				Name: "add",
-				Parameters: []string{"a", "b"},
-				ParamTypes: []*parser.TypeAnnotation{
-					{TypeName: "int"},
-					{TypeName: "int"},
+				Parameters: []parser.Parameter{
+					{Name: "a", Type: &parser.TypeAnnotation{TypeName: "int"}},
+					{Name: "b", Type: &parser.TypeAnnotation{TypeName: "int"}},
 				},
 				ReturnType: &parser.TypeAnnotation{TypeName: "int"},
 				Body: &parser.BlockStmt{
@@ -190,9 +189,8 @@ func TestTypeSystem(t *testing.T) {
 			// Function definition: identity(value: int) -> int
 			&parser.FunctionDef{
 				Name: "identity",
-				Parameters: []string{"value"},
-				ParamTypes: []*parser.TypeAnnotation{
-					{TypeName: "int"},
+				Parameters: []parser.Parameter{
+					{Name: "value", Type: &parser.TypeAnnotation{TypeName: "int"}},
 				},
 				ReturnType: &parser.TypeAnnotation{TypeName: "int"},
 				Body: &parser.BlockStmt{

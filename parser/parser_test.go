@@ -130,100 +130,58 @@ func TestIfStatement(t *testing.T) {
 
 func TestFunctionDefinition(t *testing.T) {
 	input := `
-	def add(x: int, y: int) -> int
+	def add(x: int, y: int): int do
 		return x + y
 	end
 	`
 
 	l := lexer.New(input)
-	program, errors := Parse(l)
+	program, _ := Parse(l)
 
-	// Print the errors for debugging
-	if len(errors) != 0 {
-		t.Logf("parser encountered %d errors", len(errors))
-		for i, err := range errors {
-			t.Logf("parser error %d: %s", i, err)
-		}
+	if len(program.Statements) != 1 {
+		t.Fatalf("program.Statements does not contain 1 statement. got=%d",
+			len(program.Statements))
 	}
 
-	// Print the program for debugging
-	if program != nil {
-		t.Logf("Number of statements: %d", len(program.Statements))
-		for i, stmt := range program.Statements {
-			t.Logf("Statement %d: %T - %s", i, stmt, stmt.String())
-		}
-	}
-
-	// Check that we have at least one statement
-	if program == nil || len(program.Statements) < 1 {
-		t.Fatalf("program has no statements")
-	}
-
-	// Check that it's a function definition
-	funcDef, ok := program.Statements[0].(*FunctionDef)
+	stmt, ok := program.Statements[0].(*FunctionDef)
 	if !ok {
-		t.Fatalf("program.Statements[0] is not a *FunctionDef. got=%T",
+		t.Fatalf("program.Statements[0] is not ast.FunctionDefinition. got=%T",
 			program.Statements[0])
 	}
 
-	// Check the function name
-	if funcDef.Name != "add" {
-		t.Fatalf("function name not 'add'. got=%s", funcDef.Name)
+	// Test function details
+	if stmt.Name != "add" {
+		t.Errorf("function name wrong. want=add, got=%s", stmt.Name)
 	}
 
-	// Check the parameters
-	if len(funcDef.Parameters) != 2 {
-		t.Fatalf("function has wrong number of parameters. want 2, got=%d",
-			len(funcDef.Parameters))
+	if len(stmt.Parameters) != 2 {
+		t.Fatalf("function parameters wrong. want 2, got=%d", len(stmt.Parameters))
 	}
 
-	// Check parameter names
-	expectedParams := []string{"x", "y"}
-	for i, param := range expectedParams {
-		if funcDef.Parameters[i] != param {
-			t.Fatalf("parameter %d is not '%s'. got=%s", i, param, funcDef.Parameters[i])
-		}
+	// Test parameters
+	testParameter(t, stmt.Parameters[0], "x", "int")
+	testParameter(t, stmt.Parameters[1], "y", "int")
+
+	// Test return type
+	if stmt.ReturnType == nil {
+		t.Fatalf("function returnType is nil")
+	}
+	if stmt.ReturnType.TypeName != "int" {
+		t.Errorf("return type wrong. want=int, got=%s", stmt.ReturnType.TypeName)
 	}
 
-	// Check parameter types
-	if len(funcDef.ParamTypes) != 2 {
-		t.Fatalf("function has wrong number of parameter types. want 2, got=%d",
-			len(funcDef.ParamTypes))
+	// Test body
+	if len(stmt.Body.Statements) != 1 {
+		t.Fatalf("function body statements wrong. want 1, got=%d", len(stmt.Body.Statements))
 	}
 
-	// Check return type
-	if funcDef.ReturnType.TypeName != "int" {
-		t.Fatalf("function return type is not 'int'. got=%s", funcDef.ReturnType.TypeName)
-	}
-
-	// Check function body
-	if funcDef.Body == nil {
-		t.Fatalf("function body is nil")
-	}
-
-	// The function body should have one statement (the return statement)
-	if len(funcDef.Body.Statements) != 1 {
-		t.Fatalf("function body has wrong number of statements. want 1, got=%d",
-			len(funcDef.Body.Statements))
-	}
-
-	// Check that the statement is a return statement
-	returnStmt, ok := funcDef.Body.Statements[0].(*ReturnStmt)
+	returnStmt, ok := stmt.Body.Statements[0].(*ReturnStmt)
 	if !ok {
-		t.Fatalf("function body statement is not a *ReturnStmt. got=%T",
-			funcDef.Body.Statements[0])
+		t.Fatalf("stmt.Body.Statements[0] is not ast.ReturnStatement. got=%T",
+			stmt.Body.Statements[0])
 	}
 
-	// Check that the return value is a binary expression
-	binaryExpr, ok := returnStmt.Value.(*BinaryExpr)
-	if !ok {
-		t.Fatalf("return value is not a *BinaryExpr. got=%T", returnStmt.Value)
-	}
-
-	// Check the binary expression
-	if binaryExpr.Operator != "+" {
-		t.Fatalf("binary operator is not '+'. got=%s", binaryExpr.Operator)
-	}
+	testInfixExpression(t, returnStmt.Value, "x", "+", "y")
 }
 
 // Helper functions for tests
@@ -331,4 +289,13 @@ func testBooleanLiteral(t *testing.T, exp Node, value bool) bool {
 	}
 
 	return true
+}
+
+func testParameter(t *testing.T, param Parameter, expectedName string, expectedType string) {
+	if param.Name != expectedName {
+		t.Errorf("parameter name wrong. want=%s, got=%s", expectedName, param.Name)
+	}
+	if param.Type.TypeName != expectedType {
+		t.Errorf("parameter type wrong. want=%s, got=%s", expectedType, param.Type.TypeName)
+	}
 }

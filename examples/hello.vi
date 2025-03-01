@@ -2,7 +2,7 @@
 # Demonstrates basic language features
 
 # Define a function that greets a person
-def greet(name)
+def greet(name: string): string do
   if name == ""
     return "Hello, stranger!"
   end

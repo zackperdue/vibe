@@ -6,12 +6,12 @@ b: int = 20
 c: string = "Alice"
 
 # Function with integer return
-def get_value() -> int
+def get_value(): int do
   return 30
 end
 
 # Function with string return
-def get_name() -> string
+def get_name(): string do
   return "Bob"
 end
 

@@ -10,7 +10,9 @@ echo "Running tests for Vibe programming language..."
 echo ""
 
 # Run all tests with verbose output
-go test -v ./... | grep -v "=== RUN" | grep -v "--- PASS" | grep -v "PASS" | grep -v "FAIL" | grep -v "ok" | grep -v "?"
+# The previous command had issues with the grep syntax
+# Using a safer approach that works across different grep versions
+go test -v ./... | grep -v "=== RUN" | grep -v -- "--- PASS" | grep -v "PASS" | grep -v "FAIL" | grep -v "ok" | grep -v "?"
 
 # Get exit status
 test_status=${PIPESTATUS[0]}

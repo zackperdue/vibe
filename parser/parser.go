@@ -142,11 +142,47 @@ func (c *CallExpr) String() string {
 	return result
 }
 
+// TypeAnnotation represents a type annotation
+type TypeAnnotation struct {
+	TypeName    string
+	GenericType *TypeAnnotation
+	TypeParams  []Node // For generic types like Array<string>
+}
+
+func (t *TypeAnnotation) Type() NodeType { return TypeAnnotationNode }
+func (t *TypeAnnotation) String() string {
+	if len(t.TypeParams) == 0 {
+		return fmt.Sprintf("Type(%s)", t.TypeName)
+	}
+
+	params := ""
+	for i, param := range t.TypeParams {
+		if i > 0 {
+			params += ", "
+		}
+		params += param.String()
+	}
+
+	return fmt.Sprintf("Type(%s<%s>)", t.TypeName, params)
+}
+
+// Parameter represents a function parameter with its type
+type Parameter struct {
+	Name string
+	Type *TypeAnnotation
+}
+
+func (p *Parameter) String() string {
+	if p.Type == nil {
+		return p.Name
+	}
+	return p.Name + ": " + p.Type.String()
+}
+
 // FunctionDef represents a function definition
 type FunctionDef struct {
 	Name       string
-	Parameters []string
-	ParamTypes []*TypeAnnotation
+	Parameters []Parameter
 	ReturnType *TypeAnnotation
 	Body       *BlockStmt
 }
@@ -158,9 +194,10 @@ func (f *FunctionDef) String() string {
 		if i > 0 {
 			result += ", "
 		}
-		result += param
+		result += param.String()
 	}
 	result += "], " + f.Body.String() + ")"
+
 	return result
 }
 
@@ -261,29 +298,6 @@ type PrintStmt struct {
 
 func (p *PrintStmt) Type() NodeType { return PrintStmtNode }
 func (p *PrintStmt) String() string { return fmt.Sprintf("PrintStmt(%s)", p.Value.String()) }
-
-// TypeAnnotation represents a type annotation
-type TypeAnnotation struct {
-	TypeName   string
-	TypeParams []Node // For generic types like Array<string>
-}
-
-func (t *TypeAnnotation) Type() NodeType { return TypeAnnotationNode }
-func (t *TypeAnnotation) String() string {
-	if len(t.TypeParams) == 0 {
-		return fmt.Sprintf("Type(%s)", t.TypeName)
-	}
-
-	params := ""
-	for i, param := range t.TypeParams {
-		if i > 0 {
-			params += ", "
-		}
-		params += param.String()
-	}
-
-	return fmt.Sprintf("Type(%s<%s>)", t.TypeName, params)
-}
 
 // TypeDeclaration represents a type declaration (type aliases and interfaces)
 type TypeDeclaration struct {
@@ -396,6 +410,13 @@ func (p *Parser) Errors() []string {
 func Parse(l *lexer.Lexer) (*Program, []string) {
 	p := New(l)
 	program := p.parseProgram()
+
+	// Debug print
+	fmt.Printf("DEBUG: Parsed %d statements\n", len(program.Statements))
+	for i, stmt := range program.Statements {
+		fmt.Printf("DEBUG: Statement %d: %T - %s\n", i, stmt, stmt.String())
+	}
+
 	return program, p.errors
 }
 
@@ -456,21 +477,47 @@ func (p *Parser) parseFunctionDefinition() Node {
 		return nil
 	}
 
-	funcDef.Parameters, funcDef.ParamTypes = p.parseFunctionParameters()
+	funcDef.Parameters = p.parseFunctionParameters()
 
-	// Check for return type annotation
+	// Check for return type annotation with : syntax
 	if p.curToken.Type == lexer.COLON {
 		p.nextToken()
 		funcDef.ReturnType = p.parseTypeAnnotation()
+	} else {
+		// Default return type is "int"
+		funcDef.ReturnType = &TypeAnnotation{TypeName: "int"}
 	}
 
-	// Function body
-	if p.curToken.Type != lexer.LBRACE {
-		p.errors = append(p.errors, fmt.Sprintf("Expected '{' to start function body, got %s", p.curToken.Type))
-		return nil
+	// Check for 'do' keyword
+	if p.curToken.Type != lexer.DO {
+		p.errors = append(p.errors, fmt.Sprintf("Expected 'do' after function definition, got %s", p.curToken.Type))
+	} else {
+		p.nextToken() // Skip 'do'
 	}
 
-	funcDef.Body = p.parseBlockStatement()
+	// Parse function body
+	funcDef.Body = &BlockStmt{Statements: []Node{}}
+
+	// Parse statements until we see 'end' or EOF
+	for p.curToken.Type != lexer.END && p.curToken.Type != lexer.EOF {
+		if p.curToken.Type == lexer.SEMICOLON {
+			p.nextToken()
+			continue
+		}
+
+		stmt := p.parseStatement()
+		if stmt != nil {
+			funcDef.Body.Statements = append(funcDef.Body.Statements, stmt)
+		}
+		p.nextToken()
+	}
+
+	// Check that we found the 'end' keyword
+	if p.curToken.Type != lexer.END {
+		p.errors = append(p.errors, "Expected 'end' to close function body")
+	} else {
+		p.nextToken() // Skip the 'end'
+	}
 
 	return funcDef
 }
@@ -601,46 +648,115 @@ func (p *Parser) parseVariableDeclaration() Node {
 }
 
 func (p *Parser) parseIfStatement() Node {
+	ifStmt := &IfStmt{}
+
 	// Skip 'if' keyword
 	p.nextToken()
 
-	condition := p.parseExpression(LOWEST)
+	// Parse condition
+	ifStmt.Condition = p.parseExpression(LOWEST)
 
-	// Look for the block start
-	consequence := p.parseBlockStatement()
+	// No opening brace for if statements anymore
+	// Parse the consequence block directly
+	ifStmt.Consequence = &BlockStmt{Statements: []Node{}}
 
-	// Check for elsif or else
-	var elseIfBlocks []ElseIfBlock
-	var alternative *BlockStmt
+	// Parse statements until we see 'else', 'elsif', 'end', or EOF
+	for p.peekToken.Type != lexer.ELSE && p.peekToken.Type != lexer.ELSIF && p.peekToken.Type != lexer.END && p.peekToken.Type != lexer.EOF {
+		p.nextToken()
 
-	for p.peekToken.Type == lexer.ELSIF || p.peekToken.Type == lexer.ELSE {
-		p.nextToken() // Move to elsif/else
+		if p.curToken.Type == lexer.SEMICOLON {
+			continue
+		}
 
-		if p.curToken.Type == lexer.ELSIF {
-			p.nextToken() // Move past elsif
-			elsifCondition := p.parseExpression(LOWEST)
-
-			// Look for block start
-			elsifBlock := p.parseBlockStatement()
-			elseIfBlocks = append(elseIfBlocks, ElseIfBlock{
-				Condition:   elsifCondition,
-				Consequence: elsifBlock,
-			})
-		} else if p.curToken.Type == lexer.ELSE {
-			p.nextToken() // Move past else
-
-			// Look for block start
-			alternative = p.parseBlockStatement()
-			break // Must be the last block
+		stmt := p.parseStatement()
+		if stmt != nil {
+			ifStmt.Consequence.Statements = append(ifStmt.Consequence.Statements, stmt)
 		}
 	}
 
-	return &IfStmt{
-		Condition:    condition,
-		Consequence:  consequence,
-		ElseIfBlocks: elseIfBlocks,
-		Alternative:  alternative,
+	// Check for 'else' or 'elsif'
+	if p.peekToken.Type == lexer.ELSE || p.peekToken.Type == lexer.ELSIF {
+		p.nextToken() // Move to 'else' or 'elsif'
+
+		// Check if it's 'elsif' or just 'else'
+		if p.curToken.Type == lexer.ELSIF {
+			// This is an 'elsif'
+			elseIfBlock := ElseIfBlock{
+				Condition:   nil,
+				Consequence: nil,
+			}
+
+			// Parse the condition
+			p.nextToken()
+			elseIfBlock.Condition = p.parseExpression(LOWEST)
+
+			// Parse the consequence statements
+			elseIfBlock.Consequence = &BlockStmt{Statements: []Node{}}
+
+			// Parse statements until we see 'else', 'elsif', 'end', or EOF
+			for p.peekToken.Type != lexer.ELSE && p.peekToken.Type != lexer.ELSIF && p.peekToken.Type != lexer.END && p.peekToken.Type != lexer.EOF {
+				p.nextToken()
+
+				if p.curToken.Type == lexer.SEMICOLON {
+					continue
+				}
+
+				stmt := p.parseStatement()
+				if stmt != nil {
+					elseIfBlock.Consequence.Statements = append(elseIfBlock.Consequence.Statements, stmt)
+				}
+			}
+
+			ifStmt.ElseIfBlocks = append(ifStmt.ElseIfBlocks, elseIfBlock)
+
+			// Recursively parse any additional 'elsif' or 'else' blocks
+			if p.peekToken.Type == lexer.ELSE || p.peekToken.Type == lexer.ELSIF {
+				// Create a temporary if statement to parse the remainder
+				tempIf, ok := p.parseIfStatement().(*IfStmt)
+				if ok {
+					// Transfer any elsif blocks
+					ifStmt.ElseIfBlocks = append(ifStmt.ElseIfBlocks, tempIf.ElseIfBlocks...)
+
+					// Transfer the else block if there is one
+					ifStmt.Alternative = tempIf.Alternative
+				}
+
+				// Skip past the 'end' token since it was consumed by the recursive call
+				return ifStmt
+			}
+		} else if p.curToken.Type == lexer.ELSE {
+			// This is just an 'else'
+			// Skip 'else' keyword
+			p.nextToken()
+
+			// Parse the alternative block
+			ifStmt.Alternative = &BlockStmt{Statements: []Node{}}
+
+			// Parse statements until we see 'end' or EOF
+			for p.peekToken.Type != lexer.END && p.peekToken.Type != lexer.EOF {
+				p.nextToken()
+
+				if p.curToken.Type == lexer.SEMICOLON {
+					continue
+				}
+
+				stmt := p.parseStatement()
+				if stmt != nil {
+					ifStmt.Alternative.Statements = append(ifStmt.Alternative.Statements, stmt)
+				}
+			}
+		}
 	}
+
+	// Consume the 'end' token
+	if p.peekToken.Type == lexer.END {
+		p.nextToken() // Move to 'end'
+		p.nextToken() // Skip 'end'
+	} else {
+		p.errors = append(p.errors, "Expected 'end' to close if statement")
+	}
+
+	return ifStmt
 }
 
 func (p *Parser) parseWhileStatement() Node {
@@ -649,8 +765,31 @@ func (p *Parser) parseWhileStatement() Node {
 
 	condition := p.parseExpression(LOWEST)
 
-	// Look for the block start
-	body := p.parseBlockStatement()
+	// No opening brace expected anymore
+	// Parse while loop body directly
+	body := &BlockStmt{Statements: []Node{}}
+
+	// Parse statements until we see 'end' or EOF
+	for p.peekToken.Type != lexer.END && p.peekToken.Type != lexer.EOF {
+		p.nextToken()
+
+		if p.curToken.Type == lexer.SEMICOLON {
+			continue
+		}
+
+		stmt := p.parseStatement()
+		if stmt != nil {
+			body.Statements = append(body.Statements, stmt)
+		}
+	}
+
+	// Consume the 'end' token
+	if p.peekToken.Type == lexer.END {
+		p.nextToken() // Move to 'end'
+		p.nextToken() // Skip 'end'
+	} else {
+		p.errors = append(p.errors, "Expected 'end' to close while loop")
+	}
 
 	return &WhileStmt{
 		Condition: condition,
@@ -663,11 +802,13 @@ func (p *Parser) parseReturnStatement() Node {
 	p.nextToken()
 
 	// Check if return has no value
-	if p.curToken.Type == lexer.SEMICOLON {
+	if p.curToken.Type == lexer.SEMICOLON || p.curToken.Type == lexer.EOF {
 		return &ReturnStmt{Value: nil}
 	}
 
 	value := p.parseExpression(LOWEST)
+
+	// Create a ReturnStmt node
 	return &ReturnStmt{Value: value}
 }
 
@@ -843,14 +984,16 @@ func (p *Parser) curPrecedence() int {
 func (p *Parser) parseBlockStatement() *BlockStmt {
 	block := &BlockStmt{Statements: []Node{}}
 
-	p.nextToken() // Skip opening token
+	// First, check if we're at the opening brace
+	if p.curToken.Type == lexer.LBRACE {
+		p.nextToken() // Skip '{'
+	} else {
+		// If we're not at an opening brace, don't try to parse a block
+		p.errors = append(p.errors, fmt.Sprintf("Expected '{' to start block, got %s", p.curToken.Type))
+		return block
+	}
 
-	for p.curToken.Type != lexer.RBRACE {
-		if p.curToken.Type == lexer.EOF {
-			p.errors = append(p.errors, "Unexpected EOF, expected '}'")
-			return block
-		}
-
+	for p.curToken.Type != lexer.RBRACE && p.curToken.Type != lexer.EOF {
 		if p.curToken.Type == lexer.SEMICOLON {
 			p.nextToken()
 			continue
@@ -863,70 +1006,117 @@ func (p *Parser) parseBlockStatement() *BlockStmt {
 		p.nextToken()
 	}
 
+	if p.curToken.Type != lexer.RBRACE {
+		p.errors = append(p.errors, "Unexpected EOF, expected '}'")
+	}
+
 	return block
 }
 
 // parseFunctionParameters parses function parameters with optional type annotations
-func (p *Parser) parseFunctionParameters() ([]string, []*TypeAnnotation) {
-	var parameters []string
-	var paramTypes []*TypeAnnotation
+func (p *Parser) parseFunctionParameters() []Parameter {
+	var parameters []Parameter
 
 	p.nextToken() // Skip '('
 
 	// Handle empty parameter list
 	if p.curToken.Type == lexer.RPAREN {
 		p.nextToken() // Skip ')'
-		return parameters, paramTypes
+		return parameters
 	}
 
-	// Read first parameter
-	if p.curToken.Type == lexer.IDENT {
-		parameters = append(parameters, p.curToken.Literal)
-
-		// Check for type annotation
-		p.nextToken()
-		if p.curToken.Type == lexer.COLON {
-			p.nextToken() // Skip ':'
-			paramTypes = append(paramTypes, p.parseTypeAnnotation())
-		} else {
-			// No type annotation, add nil
-			paramTypes = append(paramTypes, nil)
+	// Parse first parameter
+	if p.curToken.Type != lexer.IDENT {
+		p.errors = append(p.errors, fmt.Sprintf("Expected parameter name, got %s", p.curToken.Type))
+		// Try to recover
+		for p.curToken.Type != lexer.RPAREN && p.curToken.Type != lexer.EOF {
+			p.nextToken()
 		}
-
-		p.nextToken() // Move to ',' or ')'
+		if p.curToken.Type == lexer.RPAREN {
+			p.nextToken() // Skip ')'
+		}
+		return parameters
 	}
 
-	// Read other parameters
+	// Save the parameter name
+	paramName := p.curToken.Literal
+	param := Parameter{Name: paramName}
+
+	// Check for type annotation
+	p.nextToken()
+	if p.curToken.Type == lexer.COLON {
+		p.nextToken() // Skip ':'
+		// Parse type
+		if p.curToken.Type != lexer.IDENT {
+			p.errors = append(p.errors, fmt.Sprintf("Expected type name, got %s", p.curToken.Type))
+			param.Type = &TypeAnnotation{TypeName: "any"}
+		} else {
+			param.Type = &TypeAnnotation{TypeName: p.curToken.Literal}
+			p.nextToken() // Move past type name
+		}
+	} else {
+		// No type annotation, add a default
+		param.Type = &TypeAnnotation{TypeName: "any"}
+	}
+
+	parameters = append(parameters, param)
+
+	// Parse additional parameters
 	for p.curToken.Type == lexer.COMMA {
 		p.nextToken() // Skip ','
 
+		// Parse parameter name
 		if p.curToken.Type != lexer.IDENT {
-			p.errors = append(p.errors, fmt.Sprintf("Expected parameter name, got %s", p.curToken.Type))
-			break
+			p.errors = append(p.errors, fmt.Sprintf("Expected parameter name after comma, got %s", p.curToken.Type))
+			// Try to recover
+			for p.curToken.Type != lexer.RPAREN && p.curToken.Type != lexer.EOF {
+				p.nextToken()
+			}
+			if p.curToken.Type == lexer.RPAREN {
+				p.nextToken() // Skip ')'
+			}
+			return parameters
 		}
 
-		parameters = append(parameters, p.curToken.Literal)
+		// Save the parameter name
+		paramName = p.curToken.Literal
+		param = Parameter{Name: paramName}
 
 		// Check for type annotation
 		p.nextToken()
 		if p.curToken.Type == lexer.COLON {
 			p.nextToken() // Skip ':'
-			paramTypes = append(paramTypes, p.parseTypeAnnotation())
+			// Parse type
+			if p.curToken.Type != lexer.IDENT {
+				p.errors = append(p.errors, fmt.Sprintf("Expected type name, got %s", p.curToken.Type))
+				param.Type = &TypeAnnotation{TypeName: "any"}
+			} else {
+				param.Type = &TypeAnnotation{TypeName: p.curToken.Literal}
+				p.nextToken() // Move past type name
+			}
 		} else {
-			// No type annotation, add nil
-			paramTypes = append(paramTypes, nil)
+			// No type annotation, add a default
+			param.Type = &TypeAnnotation{TypeName: "any"}
 		}
 
-		p.nextToken() // Move to ',' or ')'
+		parameters = append(parameters, param)
 	}
 
+	// Make sure we've reached the closing parenthesis
 	if p.curToken.Type != lexer.RPAREN {
 		p.errors = append(p.errors, fmt.Sprintf("Expected ')' after parameters, got %s", p.curToken.Type))
-	} else {
+		// Try to recover
+		for p.curToken.Type != lexer.RPAREN && p.curToken.Type != lexer.EOF {
+			p.nextToken()
+		}
+	}
+
+	// Skip the closing parenthesis
+	if p.curToken.Type == lexer.RPAREN {
 		p.nextToken() // Skip ')'
 	}
 
-	return parameters, paramTypes
+	return parameters
 }
 
 func (p *Parser) parseArrayLiteral() Node {

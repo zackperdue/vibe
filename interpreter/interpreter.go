@@ -70,8 +70,7 @@ func (r *ReturnValue) VibeType() types.Type { return r.Value.VibeType() }
 // FunctionValue represents a function
 type FunctionValue struct {
 	Name           string
-	Parameters     []string
-	ParameterTypes []types.Type
+	Parameters     []parser.Parameter
 	Body           *parser.BlockStmt
 	ReturnType     types.Type
 	Env            *Environment
@@ -82,8 +81,9 @@ func (f *FunctionValue) Inspect() string {
 	return fmt.Sprintf("function %s", f.Name)
 }
 func (f *FunctionValue) VibeType() types.Type {
+	// Directly use the return type
 	return types.FunctionType{
-		ParameterTypes: f.ParameterTypes,
+		ParameterTypes: []types.Type{types.AnyType}, // Simplified for now
 		ReturnType:     f.ReturnType,
 	}
 }
@@ -517,12 +517,6 @@ func (i *Interpreter) evalAssignment(node *parser.Assignment, env *Environment) 
 }
 
 func (i *Interpreter) evalFunctionDefinition(node *parser.FunctionDef, env *Environment) Value {
-	// Parse parameter types
-	paramTypes := make([]types.Type, len(node.ParamTypes))
-	for j, paramType := range node.ParamTypes {
-		paramTypes[j] = i.parseTypeAnnotation(paramType)
-	}
-
 	// Parse return type
 	var returnType types.Type
 	if node.ReturnType != nil {
@@ -531,11 +525,10 @@ func (i *Interpreter) evalFunctionDefinition(node *parser.FunctionDef, env *Envi
 		returnType = types.AnyType
 	}
 
-	// Create the function value
+	// Create the function value with parameter types properly processed
 	function := &FunctionValue{
 		Name:           node.Name,
-		Parameters:     node.Parameters,
-		ParameterTypes: paramTypes,
+		Parameters:     node.Parameters, // Use the original parameters
 		Body:           node.Body,
 		ReturnType:     returnType,
 		Env:            env,
@@ -548,72 +541,109 @@ func (i *Interpreter) evalFunctionDefinition(node *parser.FunctionDef, env *Envi
 }
 
 func (i *Interpreter) evalCallExpression(node *parser.CallExpr, env *Environment) Value {
-	// Evaluate the function expression
 	function := i.eval(node.Function, env)
+	args := i.evalExpressions(node.Args, env)
 
-	// Evaluate arguments
-	args := make([]Value, len(node.Args))
-	for idx, arg := range node.Args {
-		args[idx] = i.eval(arg, env)
-	}
-
-	// Call the function
-	switch fn := function.(type) {
-	case *BuiltinFunction:
-		// Type check arguments for built-in functions
-		for idx, arg := range args {
-			if idx < len(fn.ParamTypes) && !types.IsAssignable(arg.VibeType(), fn.ParamTypes[idx]) {
-				return &StringValue{Value: fmt.Sprintf(
-					"Type error: Parameter %d of %s expects %s, got %s",
-					idx+1, fn.Name, fn.ParamTypes[idx].String(), arg.VibeType().String())}
-			}
+	if fn, ok := function.(*FunctionValue); ok {
+		// Check arity
+		if len(args) > len(fn.Parameters) {
+			return &StringValue{Value: fmt.Sprintf(
+				"Wrong number of arguments: function '%s' expects %d, got %d",
+				fn.Name, len(fn.Parameters), len(args))}
 		}
-		return fn.Fn(args)
-	case *FunctionValue:
-		// Create a new environment for the function call
+
+		// Create a new environment for the function
 		newEnv := NewEnclosedEnvironment(fn.Env)
 
-		// Bind parameters to arguments
+		// Bind arguments to parameters
 		for paramIdx, param := range fn.Parameters {
 			if paramIdx < len(args) {
+				// Get the parameter type from the TypeAnnotation
+				var paramType types.Type
+				if param.Type != nil {
+					paramType = i.parseTypeAnnotation(param.Type)
+				} else {
+					paramType = types.AnyType
+				}
+
 				// Type check the argument
-				if paramIdx < len(fn.ParameterTypes) && !types.IsAssignable(args[paramIdx].VibeType(), fn.ParameterTypes[paramIdx]) {
+				if !types.IsAssignable(args[paramIdx].VibeType(), paramType) {
 					return &StringValue{Value: fmt.Sprintf(
 						"Type error: Parameter '%s' of function '%s' expects %s, got %s",
-						param, fn.Name, fn.ParameterTypes[paramIdx].String(), args[paramIdx].VibeType().String())}
+						param.Name, fn.Name, paramType.String(), args[paramIdx].VibeType().String())}
 				}
 
 				// Bind the parameter
-				newEnv.SetWithType(param, args[paramIdx], fn.ParameterTypes[paramIdx])
+				newEnv.SetWithType(param.Name, args[paramIdx], paramType)
 			} else {
 				// Missing argument, use nil
-				newEnv.SetWithType(param, &NilValue{}, fn.ParameterTypes[paramIdx])
+				var paramType types.Type
+				if param.Type != nil {
+					paramType = i.parseTypeAnnotation(param.Type)
+				} else {
+					paramType = types.AnyType
+				}
+				newEnv.SetWithType(param.Name, &NilValue{}, paramType)
 			}
 		}
 
-		// Evaluate the function body in the new environment
-		evaluated := i.eval(fn.Body, newEnv)
+		// Evaluate the function body
+		result := i.evalBlockStatement(fn.Body, newEnv)
 
-		// Unwrap return value if needed
-		var returnValue Value
-		if rv, ok := evaluated.(*ReturnValue); ok {
-			returnValue = rv.Value
-		} else {
-			// Implicit return
-			returnValue = evaluated
+		// Unwrap return value, if necessary
+		if returnValue, ok := result.(*ReturnValue); ok {
+			// Type check the return value
+			if !types.IsAssignable(returnValue.Value.VibeType(), fn.ReturnType) {
+				return &StringValue{Value: fmt.Sprintf(
+					"Type error: Function '%s' returns %s, got %s",
+					fn.Name, fn.ReturnType.String(), returnValue.Value.VibeType().String())}
+			}
+			return returnValue.Value
 		}
 
-		// Check that the return value is compatible with the declared return type
-		if !types.IsAssignable(returnValue.VibeType(), fn.ReturnType) {
+		// Type check the return value
+		if !types.IsAssignable(result.VibeType(), fn.ReturnType) {
 			return &StringValue{Value: fmt.Sprintf(
-				"Type error: Function '%s' is declared to return %s but returned %s",
-				fn.Name, fn.ReturnType.String(), returnValue.VibeType().String())}
+				"Type error: Function '%s' returns %s, got %s",
+				fn.Name, fn.ReturnType.String(), result.VibeType().String())}
 		}
 
-		return returnValue
-	default:
-		return &StringValue{Value: fmt.Sprintf("Type error: %s is not a function", function.Inspect())}
+		return result
+	} else if builtin, ok := function.(*BuiltinFunction); ok {
+		// Check arity
+		if len(args) != len(builtin.ParamTypes) {
+			return &StringValue{Value: fmt.Sprintf(
+				"Wrong number of arguments: function '%s' expects %d, got %d",
+				builtin.Name, len(builtin.ParamTypes), len(args))}
+		}
+
+		// Type check arguments
+		for i, arg := range args {
+			if !types.IsAssignable(arg.VibeType(), builtin.ParamTypes[i]) {
+				return &StringValue{Value: fmt.Sprintf(
+					"Type error: Parameter %d of builtin function '%s' expects %s, got %s",
+					i, builtin.Name, builtin.ParamTypes[i].String(), arg.VibeType().String())}
+			}
+		}
+
+		return builtin.Fn(args)
 	}
+
+	return &StringValue{Value: fmt.Sprintf("Not a function: %s", function.Type())}
+}
+
+func (i *Interpreter) evalExpressions(
+	exps []parser.Node,
+	env *Environment,
+) []Value {
+	var result []Value
+
+	for _, exp := range exps {
+		evaluated := i.eval(exp, env)
+		result = append(result, evaluated)
+	}
+
+	return result
 }
 
 func (i *Interpreter) evalReturnStatement(node *parser.ReturnStmt, env *Environment) Value {

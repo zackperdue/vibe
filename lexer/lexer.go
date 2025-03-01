@@ -71,6 +71,8 @@ const (
 	WHILE    = "WHILE"
 	NIL      = "NIL"
 	PRINT    = "PRINT"
+	END      = "END"
+	DO       = "DO"
 )
 
 // keywords maps strings to their keyword TokenType
@@ -87,6 +89,8 @@ var keywords = map[string]TokenType{
 	"while":  WHILE,
 	"nil":    NIL,
 	"print":  PRINT,
+	"end":    END,
+	"do":     DO,
 }
 
 // Lexer analyzes the input and breaks it up into tokens

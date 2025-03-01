@@ -1,0 +1,198 @@
+---
+description: keep this in mind when working on the interpreter, lexer and parser or writing tests
+globs: 
+alwaysApply: false
+---
+---
+description: keep this in mind when working on the interpreter, lexer and parser or writing tests
+globs: 
+alwaysApply: false
+---
+
+# Vibe Language Syntax Reference
+
+## Overview
+
+Vibe is a dynamically typed language with Ruby-like syntax and TypeScript-style type annotations. This document outlines the official syntax rules that should be followed when implementing or modifying the lexer, parser, and interpreter components.
+
+## Basic Syntax Elements
+
+### Comments
+
+Single-line comments start with `#`:
+
+```ruby
+# This is a comment
+```
+
+### Variables and Assignments
+
+Variables are assigned with the `=` operator:
+
+```ruby
+a = 5
+b = 10
+c = a + b
+```
+
+### Data Types
+
+#### Primitive Types
+
+- **Integer**: `5`, `10`, `-3`
+- **Float**: `3.14`, `-0.5`
+- **String**: `"hello world"`, `'hello world'`
+- **Boolean**: `true`, `false`
+- **Nil**: `nil`
+
+#### Arrays
+
+Arrays are defined with square brackets:
+
+```ruby
+arr = [1, 2, 3, 4]
+```
+
+### Type Annotations
+
+Type annotations follow TypeScript-style syntax, using colons after identifiers:
+
+```ruby
+x: int = 5
+name: string = "John"
+```
+
+Available types include:
+- `int`
+- `float`
+- `string`
+- `bool`
+- `any`
+- `Array<T>` (generic array type)
+
+## Control Flow
+
+### If Statements
+
+If statements use Ruby-like syntax with `end` to close blocks:
+
+```ruby
+if x > 5
+  y = 10
+else
+  y = 5
+end
+```
+
+Elsif can be used for additional conditions:
+
+```ruby
+if x > 10
+  puts "x is greater than 10"
+elsif x > 5
+  puts "x is greater than 5 but not greater than 10"
+else
+  puts "x is not greater than 5"
+end
+```
+
+### While Loops
+
+While loops also use the `end` keyword to close blocks:
+
+```ruby
+while x < 10 do
+  x = x + 1
+end
+```
+
+## Functions
+
+### Function Definition
+
+Functions are defined using the `dev` keyword with TypeScript-style parameter and return type annotations:
+
+```ruby
+def add(x: int, y: int): int do
+  return x + y
+end
+```
+
+Function parameters can include type annotations:
+
+```ruby
+def greet(name: string): string do
+  return "Hello, " + name
+end
+```
+
+Functions use `do` & `end` to denote their body.
+
+### Function Calls
+
+Functions are called with parentheses:
+
+```ruby
+result = add(5, 10)
+```
+
+## Output
+
+Print to the console using `print` or `puts`:
+
+```ruby
+print "Hello"
+puts "World"  # adds a newline
+```
+
+## Operators
+
+### Arithmetic Operators
+
+- Addition: `+`
+- Subtraction: `-`
+- Multiplication: `*`
+- Division: `/`
+
+### Comparison Operators
+
+- Equal to: `==`
+- Not equal to: `!=`
+- Less than: `<`
+- Greater than: `>`
+- Less than or equal to: `<=`
+- Greater than or equal to: `>=`
+
+### Logical Operators
+
+- AND: `&&`
+- OR: `||`
+- NOT: `!`
+
+## Arrays and Indexing
+
+Access array elements with square brackets:
+
+```ruby
+arr = [1, 2, 3, 4]
+arr[2] = 10  # Sets the third element to 10
+```
+
+## Important Syntax Rules
+
+1. **Block Termination**: Control flow structures (if, while) use `end` to terminate blocks
+2. **Function Blocks**: Functions use `do` & `end` to denote their body
+3. **Semicolons**: Semicolons are optional at the end of statements
+4. **Type Annotations**: Follow variable or parameter names with a colon and type name
+5. **Return Type**: Function return types are specified after the parameter list with a colon
+
+## Implementation Guidelines
+
+When implementing or modifying components of the Vibe language:
+
+1. The lexer should recognize all tokens according to this syntax specification
+2. The parser should enforce the Ruby-like block structure while accommodating TypeScript-style type annotations
+3. The interpreter should respect the type annotations for type checking
+4. Error messages should be clear about syntax violations
+
+This document should be consulted when making changes to ensure consistency across the language implementation.

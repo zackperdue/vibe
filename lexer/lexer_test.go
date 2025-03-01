@@ -1,7 +1,6 @@
 package lexer
 
 import (
-	"fmt"
 	"testing"
 )
 
@@ -241,27 +240,5 @@ arr[2] = 10;`
 
 	if !defFound {
 		t.Fatal("Could not find 'def' keyword token in collected tokens")
-	}
-}
-
-func TestDebugTokens(t *testing.T) {
-	input := `5 10 true false`
-
-	// Print each character and its code
-	fmt.Println("DEBUG CHARACTERS:")
-	for i, ch := range input {
-		fmt.Printf("Char at %d: %q (code: %d)\n", i, ch, ch)
-	}
-
-	l := New(input)
-
-	// Print all tokens
-	fmt.Println("DEBUG TOKENS:")
-	for {
-		tok := l.NextToken()
-		fmt.Printf("Token: Type=%s, Value=%q\n", tok.Type, tok.Literal)
-		if tok.Type == "EOF" {
-			break
-		}
 	}
 }

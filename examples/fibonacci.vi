@@ -2,7 +2,7 @@
 # Calculates Fibonacci numbers and demonstrates language features
 
 # Function to calculate the nth Fibonacci number recursively
-def fibonacci(n)
+def fibonacci(n: int): int do
   if n <= 1
     return n
   end
@@ -11,7 +11,7 @@ def fibonacci(n)
 end
 
 # Function to calculate Fibonacci using iteration (more efficient)
-def fib_iterative(n)
+def fib_iterative(n: int): int do
   if n <= 1
     return n
   end
