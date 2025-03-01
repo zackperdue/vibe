@@ -103,6 +103,25 @@ while x < 10 do; print x; end
 
 ```
 
+### for loops
+
+```ruby
+some_arr: Array<int> = [1, 2, 3]
+another_arr: Array<string> = ["hello", "world"]
+for i in some_arr do
+  puts i
+end
+# 1
+# 2
+# 3
+
+for s in another_arr do
+  puts s
+end
+# "hello"
+# "world"
+```
+
 ## Functions
 
 ### Function Definition

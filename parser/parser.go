@@ -559,7 +559,7 @@ func (p *Parser) parseProgram() *Program {
 
 			p.nextToken() // Skip the final 'end' token
 			fmt.Printf("DEBUG: parseProgram - After skipping class definition, current token: %s, peek token: %s\n",
-				p.curToken.Type, p.curToken.Literal, p.peekToken.Type)
+				p.curToken.Type, p.peekToken.Type)
 			continue
 		}
 
@@ -1558,6 +1558,25 @@ func (p *Parser) parseIndexExpression(array Node) Node {
 func (p *Parser) parseDotExpression(left Node) Node {
 	debugf("parseDotExpression - at token: %s, left: %s", p.curToken.Type, left.String())
 
+	// Check for range operator '..' in for loops (e.g. 0..5)
+	if p.peekToken.Type == lexer.DOT {
+		// We have a '..' range operator
+		// Skip first '.' token
+		p.nextToken()
+		// Skip second '.' token
+		p.nextToken()
+
+		// Parse the end of the range
+		end := p.parseExpression(LOWEST)
+
+		// Create a range expression (represented as a binary expression with '..' operator)
+		return &BinaryExpr{
+			Left:     left,
+			Operator: "..",
+			Right:    end,
+		}
+	}
+
 	// Skip the '.' token
 	p.nextToken()
 
@@ -1868,7 +1887,7 @@ func (p *Parser) parseForStatement() Node {
 		return stmt
 	}
 
-	// Normal case: look for 'do' token
+	// The 'do' keyword is optional
 	if p.curToken.Type == lexer.DO {
 		// Skip 'do'
 		p.nextToken()
@@ -1876,37 +1895,37 @@ func (p *Parser) parseForStatement() Node {
 		// Move to and skip 'do'
 		p.nextToken()
 		p.nextToken()
-	} else {
-		p.errors = append(p.errors, fmt.Sprintf("Expected 'do' after iterable expression, got %s",
-			p.peekToken.Type))
-		return nil
 	}
+	// No error if 'do' is not present - proceed with parsing the body
 
-	// Create the body block
-	stmt.Body = &BlockStmt{Statements: []Node{}}
+	// Create a new block for the body
+	bodyBlock := &BlockStmt{Statements: []Node{}}
 
-	// Parse statements until 'end' or EOF
+	// Parse statements until we reach 'end'
 	for p.curToken.Type != lexer.END && p.curToken.Type != lexer.EOF {
-		if p.curToken.Type == lexer.SEMICOLON {
-			p.nextToken()
-			continue
+		stmt := p.parseStatement()
+		if stmt != nil {
+			bodyBlock.Statements = append(bodyBlock.Statements, stmt)
 		}
 
-		statement := p.parseStatement()
-		if statement != nil {
-			stmt.Body.Statements = append(stmt.Body.Statements, statement)
+		// Check if we've reached the end token after parsing a statement
+		if p.curToken.Type == lexer.END {
+			break
 		}
+
 		p.nextToken()
 	}
 
-	// Check that we found 'end'
-	if p.curToken.Type != lexer.END {
-		p.errors = append(p.errors, "Expected 'end' to close for loop")
-		return nil
+	// Set the body
+	stmt.Body = bodyBlock
+
+	// Skip the 'end' token if present
+	if p.curToken.Type == lexer.END {
+		p.nextToken()
+	} else if p.curToken.Type == lexer.EOF {
+		p.errors = append(p.errors, "Expected 'end' at the end of the for statement")
 	}
 
-	// Skip 'end'
-	p.nextToken()
 	return stmt
 }
 

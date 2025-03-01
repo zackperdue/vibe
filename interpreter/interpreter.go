@@ -791,7 +791,38 @@ func (i *Interpreter) evalForStatement(node *parser.ForStmt, env *Environment) V
 	// Create a new environment for the loop
 	loopEnv := NewEnclosedEnvironment(env)
 
-	// Handle different types of iterables
+	// Special case for range expressions (e.g., for i in 0..5)
+	if binExpr, ok := node.Iterable.(*parser.BinaryExpr); ok && binExpr.Operator == ".." {
+		// Evaluate the start and end of the range
+		startValue := i.eval(binExpr.Left, env)
+		endValue := i.eval(binExpr.Right, env)
+
+		// Ensure both values are integers
+		startInt, startOk := startValue.(*IntegerValue)
+		endInt, endOk := endValue.(*IntegerValue)
+
+		if startOk && endOk {
+			// Iterate through the range (inclusive)
+			for idx := startInt.Value; idx <= endInt.Value; idx++ {
+				// Set the iterator variable
+				loopEnv.Set(node.Iterator, &IntegerValue{Value: idx})
+
+				// Execute the loop body
+				result := i.eval(node.Body, loopEnv)
+
+				// Handle return statements inside the loop
+				if returnValue, ok := result.(*ReturnValue); ok {
+					return returnValue
+				}
+			}
+			return &NilValue{}
+		}
+
+		// If the range bounds aren't integers, report an error
+		return &StringValue{Value: "Type error: range bounds must be integers"}
+	}
+
+	// Handle standard iterables
 	switch iterable := iterable.(type) {
 	case *ArrayValue:
 		// Iterate over array elements

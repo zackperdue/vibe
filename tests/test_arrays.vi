@@ -59,3 +59,27 @@ puts nested_arr[0][0]  # Should be 1
 puts nested_arr[0][1]  # Should be 2
 puts nested_arr[1][0]  # Should be 3
 puts nested_arr[2][1]  # Should be 6
+
+typed_arr: Array<Int> = [1, 2, 3]
+puts typed_arr[0]  # Should be 1
+puts typed_arr[1]  # Should be 2
+puts typed_arr[2]  # Should be 3
+
+string_arr: Array<String> = ["hello", "world"]
+puts string_arr[0]  # Should be "hello"
+puts string_arr[1]  # Should be "world"
+
+bool_arr: Array<Bool> = [true, false]
+puts bool_arr[0]  # Should be true
+puts bool_arr[1]  # Should be false
+
+float_arr: Array<Float> = [1.1, 2.2, 3.3]
+puts float_arr[0]  # Should be 1.1
+puts float_arr[1]  # Should be 2.2
+puts float_arr[2]  # Should be 3.3
+
+# Array of arrays
+arr_of_arrs: Array<Array<Int>> = [[1, 2], [3, 4], [5, 6]]
+puts "Array of arrays:"
+puts arr_of_arrs[0][0]  # Should be 1
+puts arr_of_arrs[0][1]  # Should be 2
