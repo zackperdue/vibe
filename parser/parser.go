@@ -501,104 +501,140 @@ func Parse(l *lexer.Lexer) (*Program, []string) {
 }
 
 func (p *Parser) parseProgram() *Program {
-	fmt.Println("DEBUG: Starting to parse program")
 	program := &Program{}
 	program.Statements = []Node{}
+
+	fmt.Println("DEBUG: Starting to parse program")
+
+	// Track latest identifier for possible assignments across tokens
+	var lastIdent string
+	var expectingAssignment bool
+	var expectingTypeAnnotation bool
+	var typeAnnotation *TypeAnnotation
 
 	for p.curToken.Type != lexer.EOF {
 		fmt.Printf("DEBUG: parseProgram - current token: %s, literal: %s, peek token: %s, literal: %s\n",
 			p.curToken.Type, p.curToken.Literal, p.peekToken.Type, p.peekToken.Literal)
 
-		// Handle class inheritance pattern
-		if p.curToken.Type == lexer.IDENT && p.peekToken.Type == lexer.INHERITS {
-			fmt.Println("DEBUG: parseProgram - Detected class inheritance pattern, handling it specially")
-			// TODO: Uncomment when parseClassDefinition is implemented
-			// className := p.curToken.Literal
-			p.nextToken() // consume IDENT
-			p.nextToken() // consume INHERITS
-			// parentClass := p.curToken.Literal
-			p.nextToken() // consume parent class name
-
-			// Parse the class definition
-			// TODO: Uncomment when parseClassDefinition is implemented
-			// classDef := p.parseClassDefinition(className, parentClass)
-			// if classDef != nil {
-			// 	program.Statements = append(program.Statements, classDef)
-			// 	fmt.Printf("DEBUG: parseProgram - Successfully added CLASS definition: %s\n", classDef.String())
-			// }
-			continue
-		}
-
-		// Handle regular class definitions
-		if p.curToken.Type == lexer.CLASS {
-			fmt.Println("DEBUG: parseProgram - Detected class definition")
-			// TODO: Uncomment when parseClassDefinition is implemented
-			// classDef := p.parseClassDefinition("", "")
-			// if classDef != nil {
-			// 	program.Statements = append(program.Statements, classDef)
-			// 	fmt.Printf("DEBUG: parseProgram - Successfully added CLASS definition: %s\n", classDef.String())
-			// }
-
-			fmt.Printf("DEBUG: parseProgram - After class definition, current token: %s, peek token: %s\n",
-				p.curToken.Type, p.peekToken.Type)
-
-			continue
-		}
-
-		// Handle assignment pattern
-		if p.curToken.Type == lexer.IDENT {
-			fmt.Printf("DEBUG: parseProgram - Found identifier: %s, peek token: %s\n", p.curToken.Literal, p.peekToken.Type)
-
-			if p.peekToken.Type == lexer.ASSIGN {
-				fmt.Printf("DEBUG: parseProgram - Detected assignment to variable: %s\n", p.curToken.Literal)
-
-				// Save the variable name
-				name := p.curToken.Literal
-
-				// Skip to '='
+		// Special handling for class blocks
+		if p.curToken.Type == lexer.CLASS || (p.peekToken.Type == lexer.INHERITS && p.curToken.Type == lexer.IDENT) {
+			// ... existing code for class handling ...
+			// For now, just skip over the class definition to avoid infinite loop
+			// Skip 'class' token
+			if p.curToken.Type == lexer.CLASS {
 				p.nextToken()
-				fmt.Printf("DEBUG: parseProgram - Now at =, current token: %s\n", p.curToken.Type)
-
-				// Skip '='
-				p.nextToken()
-				fmt.Printf("DEBUG: parseProgram - Now after =, current token: %s, literal: %s\n", p.curToken.Type, p.curToken.Literal)
-
-				// Parse the right side of the assignment
-				value := p.parseExpression(LOWEST)
-				if value == nil {
-					fmt.Println("DEBUG: parseProgram - Failed to parse right side of assignment, skipping to next statement")
-					// Skip to the next statement
-					for p.curToken.Type != lexer.SEMICOLON && p.curToken.Type != lexer.EOF {
-						p.nextToken()
-					}
-					continue
-				}
-
-				fmt.Printf("DEBUG: parseProgram - Parsed right side of assignment: %T - %s\n", value, value.String())
-
-				// Create and add the assignment node
-				assignment := &Assignment{
-					Name:  name,
-					Value: value,
-				}
-
-				program.Statements = append(program.Statements, assignment)
-				fmt.Printf("DEBUG: parseProgram - added assignment: %s\n", assignment.String())
-
-				continue
 			}
+
+			// Skip class name
+			if p.curToken.Type == lexer.IDENT {
+				p.nextToken()
+			}
+
+			// Skip 'inherits' and parent class if present
+			if p.curToken.Type == lexer.INHERITS {
+				p.nextToken() // skip 'inherits'
+				p.nextToken() // skip parent class name
+			}
+
+			// Skip until we reach 'end' at the proper nesting level
+			depth := 0
+			for {
+				if p.curToken.Type == lexer.FUNCTION || p.curToken.Type == lexer.IF || p.curToken.Type == lexer.CLASS {
+					depth++
+				} else if p.curToken.Type == lexer.END {
+					depth--
+					if depth < 0 {
+						break // We've found the end of the class definition
+					}
+				}
+
+				// Check for end of class at top level
+				if depth == 0 && (p.curToken.Type == lexer.CLASS ||
+					p.curToken.Type == lexer.EOF) {
+					break
+				}
+
+				p.nextToken()
+			}
+
+			p.nextToken() // Skip the final 'end' token
+			fmt.Printf("DEBUG: parseProgram - After skipping class definition, current token: %s, peek token: %s\n",
+				p.curToken.Type, p.curToken.Literal, p.peekToken.Type)
+			continue
+		}
+
+		// Check for variable declaration with type annotation (a: string = "hello")
+		if p.curToken.Type == lexer.IDENT && p.peekToken.Type == lexer.COLON {
+			lastIdent = p.curToken.Literal
+			expectingTypeAnnotation = true
+			p.nextToken() // Move to COLON token
+			p.nextToken() // Move past COLON to the type
+
+			// Parse the type annotation
+			typeAnnotation = p.parseTypeAnnotation()
+
+			// If the next token is '=', we also have a value
+			if p.curToken.Type == lexer.ASSIGN {
+				expectingAssignment = true
+				p.nextToken() // Move past ASSIGN to the expression
+				fmt.Printf("DEBUG: parseProgram - Recognized variable declaration with type for '%s', now at token: %s\n",
+					lastIdent, p.curToken.Type)
+			} else {
+				// Handle the case where there's no assignment (just a declaration)
+				varDecl := &VariableDecl{
+					Name:           lastIdent,
+					TypeAnnotation: typeAnnotation,
+					Value:          nil, // No initial value
+				}
+				program.Statements = append(program.Statements, varDecl)
+				fmt.Printf("DEBUG: parseProgram - added variable declaration: %s\n", varDecl.String())
+				expectingTypeAnnotation = false
+				expectingAssignment = false
+				lastIdent = ""
+				typeAnnotation = nil
+			}
+		} else if p.curToken.Type == lexer.IDENT && p.peekToken.Type == lexer.ASSIGN {
+			// Regular assignment without type annotation
+			lastIdent = p.curToken.Literal
+			expectingAssignment = true
+			p.nextToken() // Move to ASSIGN token
+			p.nextToken() // Move past ASSIGN to the expression
+			fmt.Printf("DEBUG: parseProgram - Recognized assignment to variable '%s', now at token: %s\n",
+				lastIdent, p.curToken.Type)
 		}
 
 		stmt := p.parseStatement()
 		if stmt != nil {
-			program.Statements = append(program.Statements, stmt)
-			fmt.Printf("DEBUG: parseProgram - added statement: %T - %s\n", stmt, stmt.String())
-		} else {
+			// If we were expecting an assignment with a type annotation
+			if expectingAssignment && expectingTypeAnnotation {
+				varDecl := &VariableDecl{
+					Name:           lastIdent,
+					TypeAnnotation: typeAnnotation,
+					Value:          stmt,
+				}
+				program.Statements = append(program.Statements, varDecl)
+				fmt.Printf("DEBUG: parseProgram - added variable declaration with value: %s\n", varDecl.String())
+				expectingAssignment = false
+				expectingTypeAnnotation = false
+				lastIdent = ""
+				typeAnnotation = nil
+			} else if expectingAssignment {
+				// Regular assignment without type annotation
+				assignment := &Assignment{
+					Name:  lastIdent,
+					Value: stmt,
+				}
+				program.Statements = append(program.Statements, assignment)
+				fmt.Printf("DEBUG: parseProgram - added assignment: %s\n", assignment.String())
+				expectingAssignment = false
+				lastIdent = ""
+			} else {
+				program.Statements = append(program.Statements, stmt)
+				fmt.Printf("DEBUG: parseProgram - added statement: %T - %s\n", stmt, stmt.String())
+			}
+		} else if p.curToken.Type != lexer.EOF {
+			// If statement is nil and we're not at EOF, skip this token
 			fmt.Printf("DEBUG: parseProgram - statement was nil, skipping token: %s\n", p.curToken.Type)
-		}
-
-		// Only advance to the next token if we haven't reached EOF
-		if p.curToken.Type != lexer.EOF {
 			p.nextToken()
 		}
 	}
@@ -1496,7 +1532,7 @@ func (p *Parser) parseCallExpression(function Node) Node {
 	}
 
 	if p.curToken.Type != lexer.RPAREN {
-		p.errors = append(p.errors, fmt.Sprintf("Expected ')', got %s", p.curToken.Type))
+		p.errors = append(p.errors, fmt.Sprintf("Expected ')', got %s", p.peekToken.Type))
 		return nil
 	}
 
@@ -1568,11 +1604,23 @@ func (p *Parser) parseDotExpression(left Node) Node {
 			p.nextToken() // Skip the comma
 			p.nextToken() // Move to the next argument
 
-			arg = p.parseExpression(LOWEST)
+			arg := p.parseExpression(LOWEST)
 			if arg != nil {
 				methodCall.Args = append(methodCall.Args, arg)
+				fmt.Printf("DEBUG: parseClassInstantiation - added additional argument: %s\n", arg.String())
 			}
 		}
+
+		// Ensure we are at the closing parenthesis
+		if p.peekToken.Type == lexer.RPAREN {
+			p.nextToken()
+		} else {
+			p.errors = append(p.errors, fmt.Sprintf("Expected ')' to close arguments, got %s", p.peekToken.Type))
+			return nil
+		}
+
+		p.nextToken() // Skip the closing parenthesis
+		return methodCall
 	}
 
 	// Check for closing parenthesis
@@ -1591,51 +1639,46 @@ func (p *Parser) parseDotExpression(left Node) Node {
 func (p *Parser) parseClassInstantiation(left Node) Node {
 	fmt.Printf("DEBUG: parseClassInstantiation - at token: %s, literal: %s\n", p.curToken.Type, p.curToken.Literal)
 
-	// Create a ClassInst node
+	// Create the ClassInst node
 	classInst := &ClassInst{
-		Class:    left,
-		Args:     []Node{},
-		TypeArgs: []Node{},
+		Token:     p.curToken,
+		Class:     left,
+		Arguments: []Node{},
 	}
-
-	// Skip the 'new' token
-	p.nextToken()
-	fmt.Printf("DEBUG: parseClassInstantiation - after 'new', token: %s, literal: %s\n", p.curToken.Type, p.curToken.Literal)
 
 	// Check for opening parenthesis
-	if p.curToken.Type != lexer.LPAREN {
-		p.errors = append(p.errors, fmt.Sprintf("Expected '(' after 'new', got %s", p.curToken.Type))
+	if !p.expectPeek(lexer.LPAREN) {
 		return nil
 	}
+	fmt.Printf("DEBUG: parseClassInstantiation - after 'new', token: %s, literal: %s\n", p.curToken.Type, p.curToken.Literal)
 
 	// Skip '('
 	p.nextToken()
 	fmt.Printf("DEBUG: parseClassInstantiation - after '(', token: %s, literal: %s\n", p.curToken.Type, p.curToken.Literal)
 
-	// Parse arguments if any
-	if p.curToken.Type != lexer.RPAREN {
-		// Parse the first argument
+	// Handle empty arguments list
+	if p.curToken.Type == lexer.RPAREN {
+		p.nextToken() // Skip ')'
+		fmt.Printf("DEBUG: parseClassInstantiation - empty args, after ')', token: %s, literal: %s\n", p.curToken.Type, p.curToken.Literal)
+		return classInst
+	}
+
+	// Parse first argument
+	arg := p.parseExpression(LOWEST)
+	if arg != nil {
+		classInst.Arguments = append(classInst.Arguments, arg)
+		fmt.Printf("DEBUG: parseClassInstantiation - added first argument: %s\n", arg.String())
+	}
+
+	// Parse additional arguments
+	for p.curToken.Type == lexer.COMMA {
+		p.nextToken() // Skip comma and move to next arg
+		fmt.Printf("DEBUG: parseClassInstantiation - after comma, token: %s, literal: %s\n", p.curToken.Type, p.curToken.Literal)
+
 		arg := p.parseExpression(LOWEST)
 		if arg != nil {
-			classInst.Args = append(classInst.Args, arg)
-			fmt.Printf("DEBUG: parseClassInstantiation - added first argument: %s\n", arg.String())
-		}
-
-		// Parse additional arguments
-		for p.curToken.Type == lexer.COMMA {
-			fmt.Printf("DEBUG: parseClassInstantiation - found comma, token: %s\n", p.curToken.Type)
-
-			// Skip the comma
-			p.nextToken()
-
-			fmt.Printf("DEBUG: parseClassInstantiation - after comma, token: %s, literal: %s\n", p.curToken.Type, p.curToken.Literal)
-
-			// Parse the next argument
-			arg := p.parseExpression(LOWEST)
-			if arg != nil {
-				classInst.Args = append(classInst.Args, arg)
-				fmt.Printf("DEBUG: parseClassInstantiation - added additional argument: %s\n", arg.String())
-			}
+			classInst.Arguments = append(classInst.Arguments, arg)
+			fmt.Printf("DEBUG: parseClassInstantiation - added additional argument: %s\n", arg.String())
 		}
 	}
 
@@ -1648,8 +1691,8 @@ func (p *Parser) parseClassInstantiation(left Node) Node {
 	// Skip ')'
 	p.nextToken()
 	fmt.Printf("DEBUG: parseClassInstantiation - after ')', token: %s, literal: %s\n", p.curToken.Type, p.curToken.Literal)
+	fmt.Printf("DEBUG: parseClassInstantiation - created class instantiation with %d args\n", len(classInst.Arguments))
 
-	fmt.Printf("DEBUG: parseClassInstantiation - created class instantiation: %s\n", classInst.String())
 	return classInst
 }
 
@@ -1724,9 +1767,10 @@ func (p *Parser) parseSelfExpr() Node {
 
 // ClassInst represents a class instantiation expression
 type ClassInst struct {
-	Class    Node   // The class being instantiated
-	Args     []Node // Arguments passed to the constructor
-	TypeArgs []Node // Type arguments for generic classes
+	Token      lexer.Token
+	Class      Node
+	Arguments  []Node
+	TypeArgs   []Node
 }
 
 // Type returns the type of the node
@@ -1737,7 +1781,7 @@ func (c *ClassInst) Type() NodeType {
 // String returns a string representation of the class instantiation
 func (c *ClassInst) String() string {
 	var args []string
-	for _, arg := range c.Args {
+	for _, arg := range c.Arguments {
 		args = append(args, arg.String())
 	}
 
@@ -1920,7 +1964,7 @@ func (p *Parser) parseSuperCall() Node {
 				p.nextToken() // Skip comma
 				p.nextToken() // Move to the next argument
 
-				arg = p.parseExpression(LOWEST)
+				arg := p.parseExpression(LOWEST)
 				if arg != nil {
 					methodCall.Args = append(methodCall.Args, arg)
 				}
@@ -1957,7 +2001,7 @@ func (p *Parser) parseSuperCall() Node {
 			return nil
 		}
 
-		// Skip '(' token
+		// Skip '('
 		p.nextToken()
 
 		// Create a method call node
@@ -1980,7 +2024,7 @@ func (p *Parser) parseSuperCall() Node {
 				p.nextToken() // Skip comma
 				p.nextToken() // Move to the next argument
 
-				arg = p.parseExpression(LOWEST)
+				arg := p.parseExpression(LOWEST)
 				if arg != nil {
 					methodCall.Args = append(methodCall.Args, arg)
 				}
@@ -2023,4 +2067,17 @@ func (p *Parser) parseBinaryExpression(left Node) Node {
 		Operator: operator,
 		Right:    right,
 	}
+}
+
+func (p *Parser) expectPeek(t lexer.TokenType) bool {
+	if p.peekToken.Type == t {
+		p.nextToken()
+		return true
+	}
+	p.errors = append(p.errors, fmt.Sprintf("Expected %s, got %s", t, p.peekToken.Type))
+	return false
+}
+
+func (p *Parser) peekTokenIs(t lexer.TokenType) bool {
+	return p.peekToken.Type == t
 }

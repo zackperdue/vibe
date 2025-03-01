@@ -1,0 +1,4 @@
+a: string = "hello"
+b: int = 42
+puts a
+puts b

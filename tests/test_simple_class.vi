@@ -1,0 +1,26 @@
+# Simple test for class instantiation with multiple arguments
+
+class Point
+  def initialize(x, y)
+    @x = x
+    @y = y
+  end
+
+  def get_x
+    return @x
+  end
+
+  def get_y
+    return @y
+  end
+end
+
+# Test creating an instance with multiple arguments
+puts "Creating a Point with multiple arguments:"
+p1 = Point.new(3, 4)
+
+puts "Point coordinates:"
+puts "x = "
+puts p1.get_x()
+puts "y = "
+puts p1.get_y()
