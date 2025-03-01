@@ -3,11 +3,6 @@ description: keep this in mind when working on the interpreter, lexer and parser
 globs: 
 alwaysApply: false
 ---
----
-description: keep this in mind when working on the interpreter, lexer and parser or writing tests
-globs: 
-alwaysApply: false
----
 
 # Vibe Language Syntax Reference
 
@@ -101,7 +96,7 @@ end
 While loops also use the `end` keyword to close blocks:
 
 ```ruby
-while x < 10 do
+while x < 10
   x = x + 1
 end
 ```
@@ -110,7 +105,7 @@ end
 
 ### Function Definition
 
-Functions are defined using the `dev` keyword with TypeScript-style parameter and return type annotations:
+Functions are defined using the `def` keyword with TypeScript-style parameter and return type annotations:
 
 ```ruby
 def add(x: int, y: int): int do
@@ -180,11 +175,10 @@ arr[2] = 10  # Sets the third element to 10
 
 ## Important Syntax Rules
 
-1. **Block Termination**: Control flow structures (if, while) use `end` to terminate blocks
-2. **Function Blocks**: Functions use `do` & `end` to denote their body
-3. **Semicolons**: Semicolons are optional at the end of statements
-4. **Type Annotations**: Follow variable or parameter names with a colon and type name
-5. **Return Type**: Function return types are specified after the parameter list with a colon
+1. **Block Termination**: Control flow structures (if, while) and functions use `end` to terminate blocks
+2. **Semicolons**: Semicolons are optional at the end of statements
+3. **Type Annotations**: Follow variable or parameter names with a colon and type name
+4. **Return Type**: Function return types are specified after the parameter list with a colon
 
 ## Implementation Guidelines
 

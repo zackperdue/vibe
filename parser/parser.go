@@ -765,7 +765,13 @@ func (p *Parser) parseWhileStatement() Node {
 
 	condition := p.parseExpression(LOWEST)
 
-	// No opening brace expected anymore
+	// Check for 'do' keyword
+	if p.curToken.Type != lexer.DO {
+		p.errors = append(p.errors, fmt.Sprintf("Expected 'do' after while condition, got %s", p.curToken.Type))
+	} else {
+		p.nextToken() // Skip 'do'
+	}
+
 	// Parse while loop body directly
 	body := &BlockStmt{Statements: []Node{}}
 

@@ -21,7 +21,7 @@ def fib_iterative(n: int): int do
 
   # Loop from 2 to n
   i = 2
-  while i <= n
+  while i <= n do
     temp = a + b
     a = b
     b = temp
@@ -38,7 +38,7 @@ puts "--------------------------"
 # Calculate and display the first 10 Fibonacci numbers using the recursive function
 puts "First 10 Fibonacci numbers (recursive):"
 i = 0
-while i < 10
+while i < 10 do
   puts fibonacci(i)
   i = i + 1
 end
@@ -48,7 +48,7 @@ puts ""  # Empty line for spacing
 # Calculate and display the first 20 Fibonacci numbers using the iterative function
 puts "First 20 Fibonacci numbers (iterative):"
 i = 0
-while i < 20
+while i < 20 do
   result = fib_iterative(i)
   puts "Fibonacci("
   puts i

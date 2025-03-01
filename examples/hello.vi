@@ -24,7 +24,7 @@ puts greet("")
 # Demonstrate a loop
 puts "\nCounting from 1 to 5:"
 i = 1
-while i <= 5
+while i <= 5 do
   puts i
   i = i + 1
 end
