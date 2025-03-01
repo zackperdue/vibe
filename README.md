@@ -26,7 +26,7 @@ Vibe is a custom programming language implementation written in Go, featuring a 
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/example/vibe.git
+   git clone https://github.com/zackperdue/vibe.git
    cd vibe
    ```
 
