@@ -1,0 +1,9 @@
+# Simple example to test basic functionality
+
+# Define a simple function
+def say_hello()
+  return "Hello!"
+end
+
+# Print a message
+puts say_hello()

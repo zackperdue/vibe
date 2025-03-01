@@ -1,0 +1,3 @@
+# Test program for the 'false' keyword
+x: bool = false
+puts x

@@ -1,0 +1,61 @@
+# Test arrays and iteration features
+
+# Array creation and manipulation
+puts "Array tests:"
+arr1 = [1, 2, 3, 4, 5]
+puts "Original array:"
+puts arr1[0]
+puts arr1[1]
+puts arr1[2]
+puts arr1[3]
+puts arr1[4]
+
+# Array modification
+arr1[2] = 10
+puts "Modified array (arr1[2] = 10):"
+puts arr1[0]
+puts arr1[1]
+puts arr1[2]  # Should be 10
+puts arr1[3]
+puts arr1[4]
+
+# Testing array functions
+puts "Array length:"
+puts arr1.length()  # Should be 5
+
+# Array operations
+arr2 = [6, 7, 8]
+puts "Second array:"
+puts arr2[0]
+puts arr2[1]
+puts arr2[2]
+
+# Testing iteration with a for loop
+puts "For loop iteration:"
+for i in 0..4
+  puts "Element at index " + i + ": " + arr1[i]
+end
+
+# Sum of array elements using a loop
+sum = 0
+for i in 0..4
+  sum = sum + arr1[i]
+end
+puts "Sum of array elements:"
+puts sum  # Should be 1 + 2 + 10 + 4 + 5 = 22
+
+# Array of different types
+mixed_arr = [1, "hello", true, 3.14]
+puts "Mixed array elements:"
+puts mixed_arr[0]  # Integer
+puts mixed_arr[1]  # String
+puts mixed_arr[2]  # Boolean
+puts mixed_arr[3]  # Float
+
+# Nested arrays
+nested_arr = [[1, 2], [3, 4], [5, 6]]
+puts "Nested array elements:"
+puts nested_arr[0][0]  # Should be 1
+puts nested_arr[0][1]  # Should be 2
+puts nested_arr[1][0]  # Should be 3
+puts nested_arr[2][1]  # Should be 6

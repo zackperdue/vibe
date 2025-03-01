@@ -1,0 +1,37 @@
+# Test control flow structures
+# If/else statements and loops
+
+# If/else tests
+puts "If/else tests:"
+a = 10
+
+puts "Testing if/else with a = 10"
+if a > 5
+  puts "a is greater than 5"
+elsif a < 5
+  puts "a is less than 5"
+else
+  puts "a is equal to 5"
+end
+
+# While loop test
+puts ""
+puts "While loop test:"
+i = 1
+puts "Counting from 1 to 5:"
+while i <= 5
+  puts i
+  i = i + 1
+end
+
+# Nested if in while loop
+puts ""
+puts "Nested control structures test:"
+i = 1
+while i <= 10
+  if i % 2 == 0
+    puts "Even number:"
+    puts i
+  end
+  i = i + 1
+end

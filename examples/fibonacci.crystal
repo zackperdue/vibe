@@ -1,0 +1,79 @@
+# Fibonacci example in Crystal language
+# Calculates Fibonacci numbers and demonstrates language features
+
+# Function to calculate the nth Fibonacci number recursively
+def fibonacci(n)
+  if n <= 1
+    return n
+  end
+
+  return fibonacci(n - 1) + fibonacci(n - 2)
+end
+
+# Function to calculate Fibonacci using iteration (more efficient)
+def fib_iterative(n)
+  if n <= 1
+    return n
+  end
+
+  a = 0
+  b = 1
+
+  # Loop from 2 to n
+  i = 2
+  while i <= n
+    temp = a + b
+    a = b
+    b = temp
+    i = i + 1
+  end
+
+  return b
+end
+
+# Print welcome message
+puts "Fibonacci Sequence Calculator"
+puts "--------------------------"
+
+# Calculate and display the first 10 Fibonacci numbers using the recursive function
+puts "First 10 Fibonacci numbers (recursive):"
+i = 0
+while i < 10
+  puts fibonacci(i)
+  i = i + 1
+end
+
+puts ""  # Empty line for spacing
+
+# Calculate and display the first 20 Fibonacci numbers using the iterative function
+puts "First 20 Fibonacci numbers (iterative):"
+i = 0
+while i < 20
+  result = fib_iterative(i)
+  puts "Fibonacci("
+  puts i
+  puts ") = "
+  puts result
+  i = i + 1
+end
+
+# Demonstrate conditionals
+n = 25
+puts ""
+puts "Testing a larger value: n = "
+puts n
+
+if n > 30
+  puts "Warning: n is large, calculation might be slow"
+elsif n > 20
+  puts "Note: n is moderately large"
+else
+  puts "n is small enough for quick calculation"
+end
+
+# Calculate the result for the larger value
+result = fib_iterative(n)
+puts "Fibonacci("
+puts n
+puts ") = "
+puts result

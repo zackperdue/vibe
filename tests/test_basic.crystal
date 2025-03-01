@@ -1,0 +1,44 @@
+# Test basic language features
+# Variables, assignments, and arithmetic operations
+
+# Variable assignments and basic arithmetic
+a = 5
+b = 10
+c = a + b
+d = b - a
+e = a * b
+f = b / a
+
+# Test results
+puts "Basic arithmetic tests:"
+puts "a = 5, b = 10"
+puts "a + b = "
+puts c  # Should be 15
+puts "b - a = "
+puts d  # Should be 5
+puts "a * b = "
+puts e  # Should be 50
+puts "b / a = "
+puts f  # Should be 2
+
+# Boolean operations
+x = true
+y = false
+z = x && y
+w = x || y
+
+puts ""
+puts "Boolean tests:"
+puts "x = true, y = false"
+puts "x && y = "
+puts z  # Should be false
+puts "x || y = "
+puts w  # Should be true
+
+# String operations
+str1 = "Hello"
+str2 = "World"
+puts ""
+puts "String tests:"
+puts str1
+puts str2

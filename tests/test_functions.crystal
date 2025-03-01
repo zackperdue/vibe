@@ -1,0 +1,83 @@
+# Test function definitions and calls
+
+# Simple function with no parameters
+def say_hello
+  puts "Hello, world!"
+end
+
+# Function with a parameter
+def greet(name)
+  puts "Hello, "
+  puts name
+  puts "!"
+end
+
+# Function that returns a value
+def add(a, b)
+  return a + b
+end
+
+# Function with conditional logic
+def max(a, b)
+  if a > b
+    return a
+  else
+    return b
+  end
+end
+
+# Function with a default behavior
+def safe_divide(a, b)
+  if b == 0
+    puts "Error: Division by zero"
+    return 0
+  end
+  return a / b
+end
+
+# Recursive function
+def factorial(n)
+  if n <= 1
+    return 1
+  end
+  return n * factorial(n - 1)
+end
+
+# Test function calls
+puts "Function tests:"
+puts "Calling say_hello:"
+say_hello
+
+puts ""
+puts "Calling greet with Crystal:"
+greet("Crystal")
+
+puts ""
+puts "Calling add with 5, 3:"
+result = add(5, 3)
+puts "Result:"
+puts result  # Should be 8
+
+puts ""
+puts "Calling max with 7, 12:"
+result = max(7, 12)
+puts "Result:"
+puts result  # Should be 12
+
+puts ""
+puts "Calling safe_divide with 10, 2:"
+result = safe_divide(10, 2)
+puts "Result:"
+puts result  # Should be 5
+
+puts ""
+puts "Calling safe_divide with 10, 0:"
+result = safe_divide(10, 0)
+puts "Result:"
+puts result  # Should be 0 with error message
+
+puts ""
+puts "Calling factorial with 5:"
+result = factorial(5)
+puts "Result:"
+puts result  # Should be 120

@@ -1,0 +1,31 @@
+# Type system demonstration in Crystal - extremely simplified
+
+# Variable declarations with explicit types
+a: int = 10
+b: int = 20
+c: string = "Alice"
+
+# Function with integer return
+def get_value() -> int
+  return 30
+end
+
+# Function with string return
+def get_name() -> string
+  return "Bob"
+end
+
+# Using the functions
+result = get_value()
+puts result
+
+person = get_name()
+puts person
+
+# Using variables
+puts a
+puts b
+
+# Print string literals directly
+puts "Alice"
+puts "Hello, World!"

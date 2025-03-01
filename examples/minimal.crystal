@@ -1,0 +1,2 @@
+# Minimal Crystal program
+puts "Hello, minimal world!"

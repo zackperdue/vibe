@@ -1,0 +1,67 @@
+# Test object-oriented features
+
+# Define a simple class
+class Point
+  # Constructor
+  def initialize(x, y)
+    @x = x
+    @y = y
+  end
+
+  # Instance methods
+  def get_x
+    return @x
+  end
+
+  def get_y
+    return @y
+  end
+
+  def set_x(new_x)
+    @x = new_x
+  end
+
+  def set_y(new_y)
+    @y = new_y
+  end
+
+  def distance_from_origin
+    return (@x * @x + @y * @y) ** 0.5
+  end
+
+  def to_string
+    return "Point(" + @x + ", " + @y + ")"
+  end
+end
+
+# Test creating instances
+puts "Object-oriented tests:"
+p1 = Point.new(3, 4)
+p2 = Point.new(-1, 2)
+
+# Test accessing properties
+puts "Point 1 coordinates:"
+puts "x = "
+puts p1.get_x()  # Should be 3
+puts "y = "
+puts p1.get_y()  # Should be 4
+
+# Test method calls
+puts "Distance from origin for Point 1:"
+distance = p1.distance_from_origin()
+puts distance  # Should be 5
+
+# Test property modification
+puts "Modifying Point 2 coordinates..."
+p2.set_x(5)
+p2.set_y(12)
+
+puts "New Point 2 coordinates:"
+puts "x = "
+puts p2.get_x()  # Should be 5
+puts "y = "
+puts p2.get_y()  # Should be 12
+
+puts "Distance from origin for new Point 2:"
+distance = p2.distance_from_origin()
+puts distance  # Should be 13
