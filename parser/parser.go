@@ -259,7 +259,17 @@ type WhileStmt struct {
 
 func (w *WhileStmt) Type() NodeType { return WhileStmtNode }
 func (w *WhileStmt) String() string {
-	return fmt.Sprintf("WhileStmt(%s, %s)", w.Condition.String(), w.Body.String())
+	condStr := "<nil>"
+	if w.Condition != nil {
+		condStr = w.Condition.String()
+	}
+
+	bodyStr := "<nil>"
+	if w.Body != nil {
+		bodyStr = w.Body.String()
+	}
+
+	return fmt.Sprintf("WhileStmt(%s, %s)", condStr, bodyStr)
 }
 
 // BlockStmt represents a block of statements
@@ -653,11 +663,13 @@ func (p *Parser) parseStatement() Node {
 	switch p.curToken.Type {
 	case lexer.IDENT:
 		// Check if this is an assignment
-		if p.peekToken.Type == lexer.ASSIGN {
-			return p.parseAssignment()
+		if p.peekToken.Type == lexer.ASSIGN || p.peekToken.Type == lexer.PLUS_ASSIGN ||
+		   p.peekToken.Type == lexer.MINUS_ASSIGN || p.peekToken.Type == lexer.MUL_ASSIGN ||
+		   p.peekToken.Type == lexer.DIV_ASSIGN || p.peekToken.Type == lexer.MOD_ASSIGN {
+			return p.parseCompoundAssignment()
 		}
 		return p.parseExpressionStatement()
-	case lexer.ASSIGN:
+	case lexer.ASSIGN, lexer.PLUS_ASSIGN, lexer.MINUS_ASSIGN, lexer.MUL_ASSIGN, lexer.DIV_ASSIGN, lexer.MOD_ASSIGN:
 		// If we encounter an assignment operator directly, we need to skip it
 		// This can happen when parsing multiple assignments in sequence
 		return nil
@@ -999,46 +1011,208 @@ func (p *Parser) parseIfStatement() Node {
 }
 
 func (p *Parser) parseWhileStatement() Node {
+	fmt.Printf("DEBUG: parseWhileStatement - starting at token: %s\n", p.curToken.Type)
+
 	// Skip 'while' keyword
 	p.nextToken()
 
-	condition := p.parseExpression(LOWEST)
+	fmt.Printf("DEBUG: parseWhileStatement - after skipping 'while', at token: %s, peek: %s\n",
+		p.curToken.Type, p.peekToken.Type)
 
-	// Check for 'do' keyword
-	if p.curToken.Type != lexer.DO {
-		p.errors = append(p.errors, fmt.Sprintf("Expected 'do' after while condition, got %s", p.curToken.Type))
-	} else {
-		p.nextToken() // Skip 'do'
-	}
+	// If we have an identifier followed by a comparison operator, handle it specially
+	if p.curToken.Type == lexer.IDENT &&
+		(p.peekToken.Type == lexer.LT || p.peekToken.Type == lexer.GT ||
+		 p.peekToken.Type == lexer.LT_EQ || p.peekToken.Type == lexer.GT_EQ ||
+		 p.peekToken.Type == lexer.EQ || p.peekToken.Type == lexer.NOT_EQ) {
 
-	// Parse while loop body directly
-	body := &BlockStmt{Statements: []Node{}}
+		fmt.Printf("DEBUG: parseWhileStatement - detected comparison expression\n")
 
-	// Parse statements until we see 'end' or EOF
-	for p.peekToken.Type != lexer.END && p.peekToken.Type != lexer.EOF {
+		// Create the left side of the comparison
+		left := &Identifier{Name: p.curToken.Literal}
+
+		// Move to the comparison operator
+		p.nextToken()
+		operator := p.curToken.Literal
+
+		// Move to the right side
 		p.nextToken()
 
-		if p.curToken.Type == lexer.SEMICOLON {
-			continue
+		// Parse the right side
+		var right Node
+		switch p.curToken.Type {
+		case lexer.INT:
+			value, _ := strconv.ParseFloat(p.curToken.Literal, 64)
+			right = &NumberLiteral{Value: value, IsInt: true}
+		case lexer.FLOAT:
+			value, _ := strconv.ParseFloat(p.curToken.Literal, 64)
+			right = &NumberLiteral{Value: value, IsInt: false}
+		case lexer.IDENT:
+			right = &Identifier{Name: p.curToken.Literal}
+		default:
+			p.errors = append(p.errors, fmt.Sprintf("Expected number or identifier after comparison operator, got %s", p.curToken.Type))
+			right = &NumberLiteral{Value: 0, IsInt: true} // Default to avoid nil
 		}
 
-		stmt := p.parseStatement()
-		if stmt != nil {
-			body.Statements = append(body.Statements, stmt)
+		// Create the condition as a binary expression
+		condition := &BinaryExpr{
+			Left:     left,
+			Operator: operator,
+			Right:    right,
 		}
-	}
 
-	// Consume the 'end' token
-	if p.peekToken.Type == lexer.END {
-		p.nextToken() // Move to 'end'
-		p.nextToken() // Skip 'end'
+		fmt.Printf("DEBUG: parseWhileStatement - created condition: %s\n", condition.String())
+
+		// Move to the next token (should be 'do')
+		p.nextToken()
+
+		// Check for 'do' keyword
+		if p.curToken.Type != lexer.DO {
+			p.errors = append(p.errors, fmt.Sprintf("Expected 'do' after while condition, got %s", p.curToken.Type))
+			// Try to find it in the next token
+			if p.peekToken.Type == lexer.DO {
+				p.nextToken() // Move to 'do'
+			}
+		}
+
+		// Skip 'do' if we're on it
+		if p.curToken.Type == lexer.DO {
+			p.nextToken()
+		}
+
+		// Parse while loop body directly
+		body := &BlockStmt{Statements: []Node{}}
+
+		// Parse statements until we see 'end' or EOF
+		for p.curToken.Type != lexer.END && p.curToken.Type != lexer.EOF {
+			fmt.Printf("DEBUG: parseWhileStatement - parsing statement in body, token: %s\n", p.curToken.Type)
+
+			var stmt Node
+
+			// Handle print statements
+			if p.curToken.Type == lexer.PRINT {
+				fmt.Printf("DEBUG: parseWhileStatement - detected print statement\n")
+				// Skip 'print' or 'puts' keyword
+				p.nextToken()
+
+				// Parse the expression to print
+				expr := p.parseExpression(LOWEST)
+
+				// Create a print statement
+				stmt = &PrintStmt{Value: expr}
+				fmt.Printf("DEBUG: parseWhileStatement - created print statement: %s\n", stmt.String())
+			} else if p.curToken.Type == lexer.IDENT &&
+				(p.peekToken.Type == lexer.ASSIGN || p.peekToken.Type == lexer.PLUS_ASSIGN ||
+				 p.peekToken.Type == lexer.MINUS_ASSIGN || p.peekToken.Type == lexer.MUL_ASSIGN ||
+				 p.peekToken.Type == lexer.DIV_ASSIGN || p.peekToken.Type == lexer.MOD_ASSIGN) {
+				// Handle assignments
+				stmt = p.parseCompoundAssignment()
+			} else {
+				// Handle other statements
+				stmt = p.parseStatement()
+			}
+
+			if stmt != nil {
+				fmt.Printf("DEBUG: parseWhileStatement - added statement to body: %T\n", stmt)
+				body.Statements = append(body.Statements, stmt)
+			} else {
+				fmt.Printf("DEBUG: parseWhileStatement - statement was nil, skipping\n")
+			}
+
+			// Move to the next token
+			if p.curToken.Type != lexer.END && p.curToken.Type != lexer.EOF {
+				p.nextToken()
+			}
+		}
+
+		// Skip the 'end' token if present
+		if p.curToken.Type == lexer.END {
+			p.nextToken()
+		} else {
+			p.errors = append(p.errors, "Expected 'end' to close while loop")
+		}
+
+		return &WhileStmt{
+			Condition: condition,
+			Body:      body,
+		}
 	} else {
-		p.errors = append(p.errors, "Expected 'end' to close while loop")
-	}
+		// Fall back to the regular expression parsing for other cases
+		condition := p.parseExpression(LOWEST)
+		if condition == nil {
+			p.errors = append(p.errors, "Invalid or missing condition in while statement")
+			condition = &BooleanLiteral{Value: false} // Default to false to avoid nil pointer
+		}
 
-	return &WhileStmt{
-		Condition: condition,
-		Body:      body,
+		// Check for 'do' keyword
+		if p.curToken.Type != lexer.DO {
+			p.errors = append(p.errors, fmt.Sprintf("Expected 'do' after while condition, got %s", p.curToken.Type))
+			// Try to find it in the next token
+			if p.peekToken.Type == lexer.DO {
+				p.nextToken() // Move to 'do'
+			}
+		}
+
+		// Skip 'do' if we're on it
+		if p.curToken.Type == lexer.DO {
+			p.nextToken()
+		}
+
+		// Parse while loop body directly
+		body := &BlockStmt{Statements: []Node{}}
+
+		// Parse statements until we see 'end' or EOF
+		for p.curToken.Type != lexer.END && p.curToken.Type != lexer.EOF {
+			fmt.Printf("DEBUG: parseWhileStatement - parsing statement in body, token: %s\n", p.curToken.Type)
+
+			var stmt Node
+
+			// Handle print statements
+			if p.curToken.Type == lexer.PRINT {
+				fmt.Printf("DEBUG: parseWhileStatement - detected print statement\n")
+				// Skip 'print' or 'puts' keyword
+				p.nextToken()
+
+				// Parse the expression to print
+				expr := p.parseExpression(LOWEST)
+
+				// Create a print statement
+				stmt = &PrintStmt{Value: expr}
+				fmt.Printf("DEBUG: parseWhileStatement - created print statement: %s\n", stmt.String())
+			} else if p.curToken.Type == lexer.IDENT &&
+				(p.peekToken.Type == lexer.ASSIGN || p.peekToken.Type == lexer.PLUS_ASSIGN ||
+				 p.peekToken.Type == lexer.MINUS_ASSIGN || p.peekToken.Type == lexer.MUL_ASSIGN ||
+				 p.peekToken.Type == lexer.DIV_ASSIGN || p.peekToken.Type == lexer.MOD_ASSIGN) {
+				// Handle assignments
+				stmt = p.parseCompoundAssignment()
+			} else {
+				// Handle other statements
+				stmt = p.parseStatement()
+			}
+
+			if stmt != nil {
+				fmt.Printf("DEBUG: parseWhileStatement - added statement to body: %T\n", stmt)
+				body.Statements = append(body.Statements, stmt)
+			} else {
+				fmt.Printf("DEBUG: parseWhileStatement - statement was nil, skipping\n")
+			}
+
+			// Move to the next token
+			if p.curToken.Type != lexer.END && p.curToken.Type != lexer.EOF {
+				p.nextToken()
+			}
+		}
+
+		// Skip the 'end' token if present
+		if p.curToken.Type == lexer.END {
+			p.nextToken()
+		} else {
+			p.errors = append(p.errors, "Expected 'end' to close while loop")
+		}
+
+		return &WhileStmt{
+			Condition: condition,
+			Body:      body,
+		}
 	}
 }
 
@@ -1058,10 +1232,14 @@ func (p *Parser) parseReturnStatement() Node {
 }
 
 func (p *Parser) parsePrintStatement() Node {
+	fmt.Printf("DEBUG: parsePrintStatement - starting at token: %s\n", p.curToken.Type)
+
 	stmt := &PrintStmt{}
 
 	// Skip 'print' or 'puts' keyword
 	p.nextToken()
+
+	fmt.Printf("DEBUG: parsePrintStatement - after skipping 'print', at token: %s\n", p.curToken.Type)
 
 	// Check if it's the print(expr) syntax with parentheses
 	if p.curToken.Type == lexer.LPAREN {
@@ -1088,28 +1266,70 @@ func (p *Parser) parsePrintStatement() Node {
 		// It's the puts expr syntax without parentheses
 		// Parse the expression to print
 		stmt.Value = p.parseExpression(LOWEST)
+
+		fmt.Printf("DEBUG: parsePrintStatement - created print statement: %s\n", stmt.String())
 	}
 
 	return stmt
 }
 
-func (p *Parser) parseAssignment() Node {
-	debugf("parseAssignment - at token: %s", p.curToken.Type)
+func (p *Parser) parseCompoundAssignment() Node {
+	debugf("parseCompoundAssignment - at token: %s", p.curToken.Type)
 
 	// Save the variable name
 	name := p.curToken.Literal
 
-	// Skip to '='
+	// Skip to the assignment operator
 	p.nextToken()
 
-	// Skip '='
+	// Remember the assignment operator
+	operator := p.curToken.Type
+
+	// Skip the assignment operator
 	p.nextToken()
 
-	// Parse the right side of the assignment
-	value := p.parseExpression(LOWEST)
-	if value == nil {
-		fmt.Println("DEBUG: parseAssignment - Failed to parse right side of assignment")
-		return nil
+	var value Node
+
+	// For compound assignments, create a binary expression
+	if operator != lexer.ASSIGN {
+		// Get the left side (the variable)
+		left := &Identifier{Name: name}
+
+		// Determine the binary operator based on the compound assignment
+		var binOp string
+		switch operator {
+		case lexer.PLUS_ASSIGN:
+			binOp = "+"
+		case lexer.MINUS_ASSIGN:
+			binOp = "-"
+		case lexer.MUL_ASSIGN:
+			binOp = "*"
+		case lexer.DIV_ASSIGN:
+			binOp = "/"
+		case lexer.MOD_ASSIGN:
+			binOp = "%"
+		}
+
+		// Parse the right-hand expression
+		right := p.parseExpression(LOWEST)
+		if right == nil {
+			fmt.Println("DEBUG: parseCompoundAssignment - Failed to parse right side of assignment")
+			return nil
+		}
+
+		// Create a binary expression for the operation
+		value = &BinaryExpr{
+			Left:     left,
+			Operator: binOp,
+			Right:    right,
+		}
+	} else {
+		// For regular assignment, just parse the expression
+		value = p.parseExpression(LOWEST)
+		if value == nil {
+			fmt.Println("DEBUG: parseCompoundAssignment - Failed to parse right side of assignment")
+			return nil
+		}
 	}
 
 	// Create and return the assignment node
@@ -1118,7 +1338,7 @@ func (p *Parser) parseAssignment() Node {
 		Value: value,
 	}
 
-	debugf("parseAssignment - created assignment: %s = %s", name, value.String())
+	debugf("parseCompoundAssignment - created assignment: %s = %s", name, value.String())
 	return assignment
 }
 
@@ -1128,6 +1348,7 @@ func (p *Parser) parseExpressionStatement() Node {
 
 func (p *Parser) parseExpression(precedence int) Node {
 	fmt.Printf("DEBUG: parseExpression - at token: %s, literal: %s\n", p.curToken.Type, p.curToken.Literal)
+	fmt.Printf("DEBUG: parseExpression - precedence: %d, peek token: %s\n", precedence, p.peekToken.Type)
 
 	// Check for instance variables (@name)
 	if p.curToken.Type == lexer.AT {
@@ -1154,32 +1375,36 @@ func (p *Parser) parseExpression(precedence int) Node {
 
 		// Check for generic type parameter like Box<Int>
 		if p.peekToken.Type == lexer.LT {
-			ident := p.curToken.Literal
-			p.nextToken() // Skip to '<'
+			// Only handle as generic type if we're not in a comparison context
+			// Check if the token after '<' is an identifier (type name)
+			if p.peekTokenIs(lexer.LT) && p.peekTokenIs(lexer.IDENT) {
+				ident := p.curToken.Literal
+				p.nextToken() // Skip to '<'
 
-			// Now we're at '<'
-			p.nextToken() // Skip to the type parameter
+				// Now we're at '<'
+				p.nextToken() // Skip to the type parameter
 
-			// Parse the type parameter
-			if p.curToken.Type != lexer.IDENT {
-				p.errors = append(p.errors, fmt.Sprintf("Expected type parameter, got %s", p.curToken.Type))
-				return nil
-			}
+				// Parse the type parameter
+				if p.curToken.Type != lexer.IDENT {
+					p.errors = append(p.errors, fmt.Sprintf("Expected type parameter, got %s", p.curToken.Type))
+					return nil
+				}
 
-			typeParam := &Identifier{Name: p.curToken.Literal}
+				typeParam := &Identifier{Name: p.curToken.Literal}
 
-			// Create a binary expression to represent the generic type
-			leftExp = &BinaryExpr{
-				Left:     &Identifier{Name: ident},
-				Operator: "<",
-				Right:    typeParam,
-			}
+				// Create a binary expression to represent the generic type
+				leftExp = &BinaryExpr{
+					Left:     &Identifier{Name: ident},
+					Operator: "<",
+					Right:    typeParam,
+				}
 
-			// Skip to '>'
-			p.nextToken()
-			if p.curToken.Type != lexer.GT {
-				p.errors = append(p.errors, fmt.Sprintf("Expected '>' after type parameter, got %s", p.curToken.Type))
-				return nil
+				// Skip to '>'
+				p.nextToken()
+				if p.curToken.Type != lexer.GT {
+					p.errors = append(p.errors, fmt.Sprintf("Expected '>' after type parameter, got %s", p.curToken.Type))
+					return nil
+				}
 			}
 		}
 
@@ -1237,10 +1462,14 @@ func (p *Parser) parseExpression(precedence int) Node {
 			break
 		}
 
+		fmt.Printf("DEBUG: parseExpression - infix - current token: %s, precedence: %d, curPrecedence: %d\n",
+			p.curToken.Type, precedence, p.curPrecedence())
+
 		switch p.curToken.Type {
 		case lexer.PLUS, lexer.MINUS, lexer.ASTERISK, lexer.SLASH, lexer.MODULO,
 			lexer.EQ, lexer.NOT_EQ, lexer.LT, lexer.GT, lexer.LT_EQ, lexer.GT_EQ,
 			lexer.AND, lexer.OR:
+			fmt.Printf("DEBUG: parseExpression - calling parseBinaryExpression with operator: %s\n", p.curToken.Literal)
 			leftExp = p.parseBinaryExpression(leftExp)
 		case lexer.LPAREN:
 			leftExp = p.parseCallExpression(leftExp)
@@ -1261,7 +1490,7 @@ func isInfixOperator(tokenType lexer.TokenType) bool {
 	switch tokenType {
 	case lexer.PLUS, lexer.MINUS, lexer.ASTERISK, lexer.SLASH, lexer.MODULO,
 			lexer.EQ, lexer.NOT_EQ, lexer.LT, lexer.GT, lexer.LT_EQ, lexer.GT_EQ,
-			lexer.AND, lexer.OR, lexer.LPAREN, lexer.LBRACKET, lexer.DOT:
+			lexer.AND, lexer.OR:
 		return true
 	default:
 		return false
@@ -2056,7 +2285,7 @@ func (p *Parser) parseSuperCall() Node {
 			return nil
 		}
 
-		// Skip ')' token
+		// Skip ')'
 		p.nextToken()
 
 		return methodCall
@@ -2069,23 +2298,29 @@ func (p *Parser) parseSuperCall() Node {
 // parseBinaryExpression parses a binary expression
 func (p *Parser) parseBinaryExpression(left Node) Node {
 	fmt.Printf("DEBUG: parseBinaryExpression - at token: %s, literal: %s\n", p.curToken.Type, p.curToken.Literal)
+	fmt.Printf("DEBUG: parseBinaryExpression - left: %s\n", left.String())
 
 	// The current token is the operator
 	operator := p.curToken.Literal
 	precedence := p.curPrecedence()
+	fmt.Printf("DEBUG: parseBinaryExpression - operator: %s, precedence: %d\n", operator, precedence)
 
 	// Advance past the operator
 	p.nextToken()
+	fmt.Printf("DEBUG: parseBinaryExpression - now at token: %s, literal: %s\n", p.curToken.Type, p.curToken.Literal)
 
 	// Parse the right side of the expression
 	right := p.parseExpression(precedence)
+	fmt.Printf("DEBUG: parseBinaryExpression - right: %s\n", right.String())
 
 	// Create and return a binary expression node
-	return &BinaryExpr{
+	expr := &BinaryExpr{
 		Left:     left,
 		Operator: operator,
 		Right:    right,
 	}
+	fmt.Printf("DEBUG: parseBinaryExpression - created expression: %s\n", expr.String())
+	return expr
 }
 
 func (p *Parser) expectPeek(t lexer.TokenType) bool {

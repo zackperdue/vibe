@@ -84,6 +84,13 @@ const (
 	SELF     = "SELF"
 	SUPER    = "SUPER"
 	NEW      = "NEW"
+
+	// Compound assignment operators
+	PLUS_ASSIGN   = "+="
+	MINUS_ASSIGN  = "-="
+	MUL_ASSIGN    = "*="
+	DIV_ASSIGN    = "/="
+	MOD_ASSIGN    = "%="
 )
 
 // keywords maps strings to their keyword TokenType
@@ -177,9 +184,21 @@ func (l *Lexer) NextToken() Token {
 			tok = newToken(ASSIGN, l.ch)
 		}
 	case '+':
-		tok = newToken(PLUS, l.ch)
+		if l.peekChar() == '=' {
+			ch := l.ch
+			l.readChar()
+			tok = Token{Type: PLUS_ASSIGN, Literal: string(ch) + string(l.ch)}
+		} else {
+			tok = newToken(PLUS, l.ch)
+		}
 	case '-':
-		tok = newToken(MINUS, l.ch)
+		if l.peekChar() == '=' {
+			ch := l.ch
+			l.readChar()
+			tok = Token{Type: MINUS_ASSIGN, Literal: string(ch) + string(l.ch)}
+		} else {
+			tok = newToken(MINUS, l.ch)
+		}
 	case '!':
 		if l.peekChar() == '=' {
 			ch := l.ch
@@ -189,7 +208,13 @@ func (l *Lexer) NextToken() Token {
 			tok = newToken(BANG, l.ch)
 		}
 	case '*':
-		tok = newToken(ASTERISK, l.ch)
+		if l.peekChar() == '=' {
+			ch := l.ch
+			l.readChar()
+			tok = Token{Type: MUL_ASSIGN, Literal: string(ch) + string(l.ch)}
+		} else {
+			tok = newToken(ASTERISK, l.ch)
+		}
 	case '/':
 		// Check for comments
 		if l.peekChar() == '/' {
@@ -199,6 +224,10 @@ func (l *Lexer) NextToken() Token {
 				l.readChar()
 			}
 			return l.NextToken() // Get the next valid token
+		} else if l.peekChar() == '=' {
+			ch := l.ch
+			l.readChar()
+			tok = Token{Type: DIV_ASSIGN, Literal: string(ch) + string(l.ch)}
 		} else {
 			tok = newToken(SLASH, l.ch)
 		}
@@ -209,7 +238,13 @@ func (l *Lexer) NextToken() Token {
 		}
 		return l.NextToken() // Get the next valid token
 	case '%':
-		tok = newToken(MODULO, l.ch)
+		if l.peekChar() == '=' {
+			ch := l.ch
+			l.readChar()
+			tok = Token{Type: MOD_ASSIGN, Literal: string(ch) + string(l.ch)}
+		} else {
+			tok = newToken(MODULO, l.ch)
+		}
 	case '<':
 		if l.peekChar() == '=' {
 			ch := l.ch
