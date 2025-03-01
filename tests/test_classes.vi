@@ -1,0 +1,138 @@
+# Test class functionality in Vibe
+
+# Define a simple class
+class Person
+    name: String
+    age: Int
+
+    def initialize(name: String, age: Int)
+        @name = name
+        @age = age
+    end
+
+    def get_name(): String
+        return @name
+    end
+
+    def get_age(): Int
+        return @age
+    end
+
+    def birthday()
+        @age = @age + 1
+    end
+
+    def to_string(): String
+        return @name + " (" + @age + ")"
+    end
+
+    def self.create_default(): Person
+        return Person.new("Default", 0)
+    end
+end
+
+# Test inheritance
+class Employee inherits Person
+    role: String
+    salary: Int
+
+    def initialize(name: String, age: Int, role: String, salary: Int)
+        super(name, age)
+        @role = role
+        @salary = salary
+    end
+
+    def get_role(): String
+        return @role
+    end
+
+    def get_salary(): Int
+        return @salary
+    end
+
+    def raise(amount: Int)
+        @salary = @salary + amount
+    end
+
+    def to_string(): String
+        return super.to_string() + ", " + @role + ", $" + @salary
+    end
+end
+
+# Test generics
+class Box<T>
+    value: T
+
+    def initialize(value: T)
+        @value = value
+    end
+
+    def get(): T
+        return @value
+    end
+
+    def set(value: T)
+        @value = value
+    end
+end
+
+# Testing class instantiation
+puts "=== Class Tests ==="
+puts "Creating a Person..."
+person = Person.new("John", 30)
+
+# Testing instance methods
+puts "Name: " + person.get_name()
+puts "Age: " + person.get_age()
+
+# Testing state changes
+puts "Having a birthday..."
+person.birthday()
+puts "New age: " + person.get_age()
+
+# Testing to_string
+puts "Person: " + person.to_string()
+
+# Testing class methods
+puts "\nCreating default person..."
+default_person = Person.create_default()
+puts "Default: " + default_person.to_string()
+
+# Testing inheritance
+puts "\n=== Inheritance Tests ==="
+puts "Creating an Employee..."
+employee = Employee.new("Jane", 28, "Developer", 75000)
+
+# Testing inherited methods
+puts "Name: " + employee.get_name()
+puts "Age: " + employee.get_age()
+
+# Testing new methods
+puts "Role: " + employee.get_role()
+puts "Salary: $" + employee.get_salary()
+
+# Testing method overriding
+puts "Employee: " + employee.to_string()
+
+# Testing state changes
+puts "Giving a raise..."
+employee.raise(5000)
+puts "New salary: $" + employee.get_salary()
+
+# Testing generics
+puts "\n=== Generics Tests ==="
+puts "Creating boxes with different types..."
+int_box = Box<Int>.new(42)
+string_box = Box<String>.new("Hello")
+
+puts "Int box value: " + int_box.get()
+puts "String box value: " + string_box.get()
+
+puts "Changing box values..."
+int_box.set(100)
+string_box.set("World")
+
+puts "New int box value: " + int_box.get()
+puts "New string box value: " + string_box.get()
+
+puts "\n=== All tests completed ==="

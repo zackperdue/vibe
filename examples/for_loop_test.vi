@@ -7,3 +7,8 @@ numbers = [1, 2, 3, 4, 5]
 for i in numbers do
   puts i
 end
+
+# For loop with a range
+for i in 1..5 do
+  puts i
+end

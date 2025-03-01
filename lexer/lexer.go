@@ -51,6 +51,7 @@ const (
 	SEMICOLON = ";"
 	COLON     = ":"
 	DOT       = "."
+	AT        = "@"  // For instance variables
 
 	LPAREN   = "("
 	RPAREN   = ")"
@@ -76,27 +77,48 @@ const (
 	PRINT    = "PRINT"
 	END      = "END"
 	DO       = "DO"
+
+	// Class-related keywords
+	CLASS    = "CLASS"
+	INHERITS = "INHERITS"
+	SELF     = "SELF"
+	SUPER    = "SUPER"
+	NEW      = "NEW"
+
+	// Compound assignment operators
+	PLUS_ASSIGN   = "+="
+	MINUS_ASSIGN  = "-="
+	MUL_ASSIGN    = "*="
+	DIV_ASSIGN    = "/="
+	MOD_ASSIGN    = "%="
 )
 
 // keywords maps strings to their keyword TokenType
 var keywords = map[string]TokenType{
-	"def":    FUNCTION,
-	"let":    LET,
-	"var":    VAR,
-	"true":   TRUE,
-	"false":  FALSE,
-	"if":     IF,
-	"else":   ELSE,
-	"elsif":  ELSIF,
-	"return": RETURN,
-	"while":  WHILE,
-	"for":    FOR,
-	"in":     IN,
-	"nil":    NIL,
-	"print":  PRINT,
-	"puts":   PRINT,
-	"end":    END,
-	"do":     DO,
+	"def":      FUNCTION,
+	"let":      LET,
+	"var":      VAR,
+	"true":     TRUE,
+	"false":    FALSE,
+	"if":       IF,
+	"else":     ELSE,
+	"elsif":    ELSIF,
+	"return":   RETURN,
+	"while":    WHILE,
+	"for":      FOR,
+	"in":       IN,
+	"nil":      NIL,
+	"print":    PRINT,
+	"puts":     PRINT,
+	"end":      END,
+	"do":       DO,
+
+	// Class-related keywords
+	"class":    CLASS,
+	"inherits": INHERITS,
+	"self":     SELF,
+	"super":    SUPER,
+	"new":      NEW,
 }
 
 // Lexer analyzes the input and breaks it up into tokens
@@ -162,9 +184,21 @@ func (l *Lexer) NextToken() Token {
 			tok = newToken(ASSIGN, l.ch)
 		}
 	case '+':
-		tok = newToken(PLUS, l.ch)
+		if l.peekChar() == '=' {
+			ch := l.ch
+			l.readChar()
+			tok = Token{Type: PLUS_ASSIGN, Literal: string(ch) + string(l.ch)}
+		} else {
+			tok = newToken(PLUS, l.ch)
+		}
 	case '-':
-		tok = newToken(MINUS, l.ch)
+		if l.peekChar() == '=' {
+			ch := l.ch
+			l.readChar()
+			tok = Token{Type: MINUS_ASSIGN, Literal: string(ch) + string(l.ch)}
+		} else {
+			tok = newToken(MINUS, l.ch)
+		}
 	case '!':
 		if l.peekChar() == '=' {
 			ch := l.ch
@@ -174,7 +208,13 @@ func (l *Lexer) NextToken() Token {
 			tok = newToken(BANG, l.ch)
 		}
 	case '*':
-		tok = newToken(ASTERISK, l.ch)
+		if l.peekChar() == '=' {
+			ch := l.ch
+			l.readChar()
+			tok = Token{Type: MUL_ASSIGN, Literal: string(ch) + string(l.ch)}
+		} else {
+			tok = newToken(ASTERISK, l.ch)
+		}
 	case '/':
 		// Check for comments
 		if l.peekChar() == '/' {
@@ -184,6 +224,10 @@ func (l *Lexer) NextToken() Token {
 				l.readChar()
 			}
 			return l.NextToken() // Get the next valid token
+		} else if l.peekChar() == '=' {
+			ch := l.ch
+			l.readChar()
+			tok = Token{Type: DIV_ASSIGN, Literal: string(ch) + string(l.ch)}
 		} else {
 			tok = newToken(SLASH, l.ch)
 		}
@@ -194,7 +238,13 @@ func (l *Lexer) NextToken() Token {
 		}
 		return l.NextToken() // Get the next valid token
 	case '%':
-		tok = newToken(MODULO, l.ch)
+		if l.peekChar() == '=' {
+			ch := l.ch
+			l.readChar()
+			tok = Token{Type: MOD_ASSIGN, Literal: string(ch) + string(l.ch)}
+		} else {
+			tok = newToken(MODULO, l.ch)
+		}
 	case '<':
 		if l.peekChar() == '=' {
 			ch := l.ch
@@ -235,6 +285,8 @@ func (l *Lexer) NextToken() Token {
 		tok = newToken(COLON, l.ch)
 	case '.':
 		tok = newToken(DOT, l.ch)
+	case '@':
+		tok = newToken(AT, l.ch)
 	case '(':
 		tok = newToken(LPAREN, l.ch)
 	case ')':

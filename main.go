@@ -66,6 +66,11 @@ func runInteractiveMode() {
 	scanner := bufio.NewScanner(os.Stdin)
 
 	for {
+		// Track input buffer for multiline input
+		var inputBuffer strings.Builder
+		var isMultiline bool
+		var blockCount int = 0
+
 		fmt.Print(">> ")
 		if !scanner.Scan() {
 			break
@@ -76,8 +81,43 @@ func runInteractiveMode() {
 			break
 		}
 
+		// Check if this line might start a multi-line block
+		if containsBlockOpener(line) {
+			isMultiline = true
+			blockCount++
+		}
+
+		inputBuffer.WriteString(line)
+
+		// If we're in a multiline context, keep collecting lines until the blocks are closed
+		for isMultiline && blockCount > 0 {
+			fmt.Print(".. ")
+			if !scanner.Scan() {
+				break
+			}
+
+			line = scanner.Text()
+			if line == "exit" {
+				break
+			}
+
+			// Track block openers and closers
+			if containsBlockOpener(line) {
+				blockCount++
+			}
+			if containsBlockCloser(line) {
+				blockCount--
+			}
+
+			// Add the line to our buffer
+			inputBuffer.WriteString("\n")
+			inputBuffer.WriteString(line)
+		}
+
+		code := inputBuffer.String()
+
 		// Create a lexer from the input
-		l := lexer.New(line)
+		l := lexer.New(code)
 
 		// Parse the input
 		program, errors := parser.Parse(l)
@@ -93,6 +133,37 @@ func runInteractiveMode() {
 			fmt.Printf("=> %s : %s\n", result.Inspect(), result.VibeType())
 		}
 	}
+}
+
+// Helper function to detect if a line contains a block opener token
+func containsBlockOpener(line string) bool {
+	// Check for block openers: for, if, function, class, while, etc.
+	keywords := []string{"for", "if", "function", "class", "while", "do"}
+	for _, keyword := range keywords {
+		if strings.Contains(line, keyword+" ") || strings.HasSuffix(line, keyword) ||
+		   strings.Contains(line, keyword+"\n") {
+			return true
+		}
+	}
+	// Also check for array literals that span multiple lines
+	if strings.Contains(line, "[") && !strings.Contains(line, "]") {
+		return true
+	}
+	return false
+}
+
+// Helper function to detect if a line contains a block closer token
+func containsBlockCloser(line string) bool {
+	// Check for 'end' keyword which closes most blocks
+	if strings.TrimSpace(line) == "end" || strings.HasPrefix(strings.TrimSpace(line), "end ") ||
+	   strings.HasSuffix(strings.TrimSpace(line), " end") || strings.Contains(line, " end ") {
+		return true
+	}
+	// Also check for closing brackets for array literals
+	if strings.Contains(line, "]") {
+		return true
+	}
+	return false
 }
 
 func runProgram(source string) {

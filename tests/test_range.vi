@@ -1,0 +1,14 @@
+puts "Range expression test:"
+puts "----------"
+
+for i in 0..5 do
+  puts i
+end
+
+sum = 0
+for i in 1..10 do
+  sum = sum + i
+end
+
+puts "Sum from 1 to 10:"
+puts sum

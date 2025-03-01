@@ -1,9 +1,8 @@
 ---
 description: keep this in mind when working on the interpreter, lexer and parser or writing tests
-globs: 
+globs:
 alwaysApply: false
 ---
-
 # Vibe Language Syntax Reference
 
 ## Overview
@@ -30,6 +29,16 @@ b = 10
 c = a + b
 ```
 
+Compound assignments are also supported:
+
+```ruby
+a += 5   # Equivalent to a = a + 5
+b -= 2   # Equivalent to b = b - 2
+c *= 3   # Equivalent to c = c * 3
+d /= 2   # Equivalent to d = d / 2
+e %= 4   # Equivalent to e = e % 4
+```
+
 ### Data Types
 
 #### Primitive Types
@@ -46,6 +55,13 @@ Arrays are defined with square brackets:
 
 ```ruby
 arr = [1, 2, 3, 4]
+```
+
+Array elements can be accessed with square bracket notation:
+
+```ruby
+first = arr[0]  # Gets the first element
+arr[2] = 10     # Sets the third element to 10
 ```
 
 ### Type Annotations
@@ -99,6 +115,31 @@ While loops use the `do` and `end` keywords to denote their body:
 while x < 10 do
   x = x + 1
 end
+
+# Compact form is also supported
+while x < 10 do; print x; end
+```
+
+### For Loops
+
+For loops iterate over arrays:
+
+```ruby
+some_arr = [1, 2, 3]
+another_arr = ["hello", "world"]
+
+for i in some_arr do
+  puts i
+end
+# 1
+# 2
+# 3
+
+for s in another_arr do
+  puts s
+end
+# "hello"
+# "world"
 ```
 
 ## Functions
@@ -148,6 +189,7 @@ puts "World"  # adds a newline
 - Subtraction: `-`
 - Multiplication: `*`
 - Division: `/`
+- Modulo: `%`
 
 ### Comparison Operators
 
@@ -164,48 +206,42 @@ puts "World"  # adds a newline
 - OR: `||`
 - NOT: `!`
 
-## Arrays and Indexing
-
-Access array elements with square brackets:
-
-```ruby
-arr = [1, 2, 3, 4]
-arr[2] = 10  # Sets the third element to 10
-```
-
-## Structs
-
-struct Person
-  name: string
-  age: int
-
-  def greet(): string do
-    return "Hello, my name is " + self.name
-  end
-
-  def have_birthday(): void do
-    self.age = self.age + 1
-  end
-end
-
-# Create an instance
-p = Person.new("Alice", 30)
-
-# Access fields
-puts p.name  # Outputs: Alice
-puts p.age   # Outputs: 30
-
-# Call methods
-puts p.greet()  # Outputs: Hello, my name is Alice
-p.have_birthday()
-puts p.age      # Outputs: 31
-
 ## Important Syntax Rules
 
 1. **Block Termination**: Control flow structures (if, while) and functions use `end` to terminate blocks
 2. **Semicolons**: Semicolons are optional at the end of statements
 3. **Type Annotations**: Follow variable or parameter names with a colon and type name
 4. **Return Type**: Function return types are specified after the parameter list with a colon
+
+## Implementation Status
+
+### ✅ Currently Supported Features
+
+- Basic variable declaration and assignment
+- Compound assignments (`+=`, `-=`, etc.)
+- Primitive types (int, float, string, boolean, nil)
+- Arrays and array operations
+- Basic type annotations
+- If/elsif/else statements
+- While loops
+- For loops with array iteration
+- Function definition and calls
+- Print statements (`puts`, `print`)
+- Arithmetic, comparison, and logical operators
+
+### 🚧 Partially Supported Features
+
+- **Classes**: Basic class definition and instantiation syntax is defined, but implementation is incomplete
+- **Inheritance**: Syntax is defined but not fully implemented
+- **Generics**: Syntax is defined but not fully implemented
+
+### ❌ Unsupported Features (Planned)
+
+- **Modules/Imports**: For code organization
+- **Exception handling**: Try/catch blocks
+- **Structs**: For lightweight data structures
+- **Advanced generics**: More complex type parameters
+- **Standard library**: Built-in functions and utilities
 
 ## Implementation Guidelines
 

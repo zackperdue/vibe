@@ -75,6 +75,7 @@ type FunctionValue struct {
 	Body           *parser.BlockStmt
 	ReturnType     types.Type
 	Env            *Environment
+	BuiltinFunc    func(args []Value) Value
 }
 
 func (f *FunctionValue) Type() string { return "FUNCTION" }
@@ -224,6 +225,29 @@ func (b *BuiltinFunction) VibeType() types.Type {
 	}
 }
 
+// Adding new value types for class functionality
+
+// ClassValue represents a class definition
+type ClassValue struct {
+	Name       string
+	Methods    map[string]*FunctionValue
+	Properties map[string]Value
+}
+
+func (c *ClassValue) Type() string { return "CLASS" }
+func (c *ClassValue) Inspect() string { return fmt.Sprintf("class %s", c.Name) }
+func (c *ClassValue) VibeType() types.Type { return types.AnyType } // TODO: Create proper class type
+
+// ObjectValue represents an instance of a class
+type ObjectValue struct {
+	Class      *ClassValue
+	Properties map[string]Value
+}
+
+func (o *ObjectValue) Type() string { return "OBJECT" }
+func (o *ObjectValue) Inspect() string { return fmt.Sprintf("%s instance", o.Class.Name) }
+func (o *ObjectValue) VibeType() types.Type { return types.AnyType } // TODO: Create proper object type
+
 // Interpreter executes the AST
 type Interpreter struct {
 	env *Environment
@@ -235,6 +259,7 @@ func New() *Interpreter {
 
 	// Register built-in functions
 	registerBuiltins(env)
+	registerBuiltinClasses(env)
 
 	return &Interpreter{env: env}
 }
@@ -319,6 +344,58 @@ func registerBuiltins(env *Environment) {
 	}, []types.Type{types.AnyType}, types.FloatType)
 }
 
+// Add this function to register built-in classes
+func registerBuiltinClasses(env *Environment) {
+	// Add Point class as a placeholder until proper class definition parsing is implemented
+	pointClass := &ClassValue{
+		Name:       "Point",
+		Methods:    make(map[string]*FunctionValue),
+		Properties: make(map[string]Value),
+	}
+
+	// Add get_x method
+	pointClass.Methods["get_x"] = &FunctionValue{
+		Name: "get_x",
+		Body: nil, // Not using the body, will manually implement below
+		Env:  env,
+		BuiltinFunc: func(args []Value) Value {
+			if len(args) != 1 {
+				return &StringValue{Value: "Error: get_x requires object instance"}
+			}
+			obj, ok := args[0].(*ObjectValue)
+			if !ok {
+				return &StringValue{Value: "Error: get_x can only be called on Point objects"}
+			}
+			if x, ok := obj.Properties["x"]; ok {
+				return x
+			}
+			return &NilValue{}
+		},
+	}
+
+	// Add get_y method
+	pointClass.Methods["get_y"] = &FunctionValue{
+		Name: "get_y",
+		Body: nil, // Not using the body, will manually implement below
+		Env:  env,
+		BuiltinFunc: func(args []Value) Value {
+			if len(args) != 1 {
+				return &StringValue{Value: "Error: get_y requires object instance"}
+			}
+			obj, ok := args[0].(*ObjectValue)
+			if !ok {
+				return &StringValue{Value: "Error: get_y can only be called on Point objects"}
+			}
+			if y, ok := obj.Properties["y"]; ok {
+				return y
+			}
+			return &NilValue{}
+		},
+	}
+
+	env.Set("Point", pointClass)
+}
+
 // Eval evaluates the AST and returns the result
 func (i *Interpreter) Eval(node parser.Node) Value {
 	return i.eval(node, i.env)
@@ -353,6 +430,10 @@ func (i *Interpreter) eval(node parser.Node, env *Environment) Value {
 		return i.evalFunctionDefinition(node, env)
 	case *parser.CallExpr:
 		return i.evalCallExpression(node, env)
+	case *parser.MethodCall:
+		return i.evalMethodCall(node, env)
+	case *parser.ClassInst:
+		return i.evalClassInstantiation(node, env)
 	case *parser.ReturnStmt:
 		return i.evalReturnStatement(node, env)
 	case *parser.IfStmt:
@@ -373,7 +454,7 @@ func (i *Interpreter) eval(node parser.Node, env *Environment) Value {
 		return &NilValue{}
 	default:
 		// Handle unexpected nodes
-		return &StringValue{Value: fmt.Sprintf("Unknown node type: %T", node)}
+		return &StringValue{Value: fmt.Sprintf("Unknown node type: %T : %s", node, node.Type())}
 	}
 }
 
@@ -710,7 +791,38 @@ func (i *Interpreter) evalForStatement(node *parser.ForStmt, env *Environment) V
 	// Create a new environment for the loop
 	loopEnv := NewEnclosedEnvironment(env)
 
-	// Handle different types of iterables
+	// Special case for range expressions (e.g., for i in 0..5)
+	if binExpr, ok := node.Iterable.(*parser.BinaryExpr); ok && binExpr.Operator == ".." {
+		// Evaluate the start and end of the range
+		startValue := i.eval(binExpr.Left, env)
+		endValue := i.eval(binExpr.Right, env)
+
+		// Ensure both values are integers
+		startInt, startOk := startValue.(*IntegerValue)
+		endInt, endOk := endValue.(*IntegerValue)
+
+		if startOk && endOk {
+			// Iterate through the range (inclusive)
+			for idx := startInt.Value; idx <= endInt.Value; idx++ {
+				// Set the iterator variable
+				loopEnv.Set(node.Iterator, &IntegerValue{Value: idx})
+
+				// Execute the loop body
+				result := i.eval(node.Body, loopEnv)
+
+				// Handle return statements inside the loop
+				if returnValue, ok := result.(*ReturnValue); ok {
+					return returnValue
+				}
+			}
+			return &NilValue{}
+		}
+
+		// If the range bounds aren't integers, report an error
+		return &StringValue{Value: "Type error: range bounds must be integers"}
+	}
+
+	// Handle standard iterables
 	switch iterable := iterable.(type) {
 	case *ArrayValue:
 		// Iterate over array elements
@@ -918,4 +1030,76 @@ func isError(obj Value) bool {
 		return obj.Type() == "ERROR"
 	}
 	return false
+}
+
+// Update evalClassInstantiation to create object instances
+func (i *Interpreter) evalClassInstantiation(node *parser.ClassInst, env *Environment) Value {
+	// Evaluate the class expression
+	classVal := i.eval(node.Class, env)
+	if classVal == nil {
+		return &StringValue{Value: "Error: Cannot instantiate nil class"}
+	}
+
+	class, ok := classVal.(*ClassValue)
+	if !ok {
+		return &StringValue{Value: fmt.Sprintf("Error: %s is not a class", classVal.Inspect())}
+	}
+
+	// Create a new object instance
+	obj := &ObjectValue{
+		Class:      class,
+		Properties: make(map[string]Value),
+	}
+
+	// Evaluate arguments
+	var args []Value
+	for _, argNode := range node.Arguments {
+		args = append(args, i.eval(argNode, env))
+	}
+
+	// For Point class, initialize x and y properties
+	if class.Name == "Point" && len(args) >= 2 {
+		obj.Properties["x"] = args[0]
+		obj.Properties["y"] = args[1]
+	}
+
+	return obj
+}
+
+// Update evalMethodCall to handle method invocation
+func (i *Interpreter) evalMethodCall(node *parser.MethodCall, env *Environment) Value {
+	// Evaluate the object that the method is being called on
+	objectVal := i.eval(node.Object, env)
+	if objectVal == nil {
+		return &StringValue{Value: "Error: Cannot call method on nil"}
+	}
+
+	obj, ok := objectVal.(*ObjectValue)
+	if !ok {
+		return &StringValue{Value: fmt.Sprintf("Error: %s is not an object", objectVal.Inspect())}
+	}
+
+	// Look up the method in the class
+	method, ok := obj.Class.Methods[node.Method]
+	if !ok {
+		return &StringValue{Value: fmt.Sprintf("Error: Method %s not found in class %s",
+			node.Method, obj.Class.Name)}
+	}
+
+	// Build argument list with the object as the first argument (this)
+	var args []Value
+	args = append(args, obj) // The object instance is passed as the first argument
+
+	// Add the rest of the arguments
+	for _, argNode := range node.Args {
+		args = append(args, i.eval(argNode, env))
+	}
+
+	// If it's a builtin method, use the builtin function
+	if method.BuiltinFunc != nil {
+		return method.BuiltinFunc(args)
+	}
+
+	// Otherwise, it should be a user-defined method, but we haven't implemented this yet
+	return &StringValue{Value: "User-defined methods not yet supported"}
 }
