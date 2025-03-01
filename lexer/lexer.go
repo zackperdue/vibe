@@ -51,6 +51,7 @@ const (
 	SEMICOLON = ";"
 	COLON     = ":"
 	DOT       = "."
+	AT        = "@"  // For instance variables
 
 	LPAREN   = "("
 	RPAREN   = ")"
@@ -76,27 +77,41 @@ const (
 	PRINT    = "PRINT"
 	END      = "END"
 	DO       = "DO"
+
+	// Class-related keywords
+	CLASS    = "CLASS"
+	INHERITS = "INHERITS"
+	SELF     = "SELF"
+	SUPER    = "SUPER"
+	NEW      = "NEW"
 )
 
 // keywords maps strings to their keyword TokenType
 var keywords = map[string]TokenType{
-	"def":    FUNCTION,
-	"let":    LET,
-	"var":    VAR,
-	"true":   TRUE,
-	"false":  FALSE,
-	"if":     IF,
-	"else":   ELSE,
-	"elsif":  ELSIF,
-	"return": RETURN,
-	"while":  WHILE,
-	"for":    FOR,
-	"in":     IN,
-	"nil":    NIL,
-	"print":  PRINT,
-	"puts":   PRINT,
-	"end":    END,
-	"do":     DO,
+	"def":      FUNCTION,
+	"let":      LET,
+	"var":      VAR,
+	"true":     TRUE,
+	"false":    FALSE,
+	"if":       IF,
+	"else":     ELSE,
+	"elsif":    ELSIF,
+	"return":   RETURN,
+	"while":    WHILE,
+	"for":      FOR,
+	"in":       IN,
+	"nil":      NIL,
+	"print":    PRINT,
+	"puts":     PRINT,
+	"end":      END,
+	"do":       DO,
+
+	// Class-related keywords
+	"class":    CLASS,
+	"inherits": INHERITS,
+	"self":     SELF,
+	"super":    SUPER,
+	"new":      NEW,
 }
 
 // Lexer analyzes the input and breaks it up into tokens
@@ -235,6 +250,8 @@ func (l *Lexer) NextToken() Token {
 		tok = newToken(COLON, l.ch)
 	case '.':
 		tok = newToken(DOT, l.ch)
+	case '@':
+		tok = newToken(AT, l.ch)
 	case '(':
 		tok = newToken(LPAREN, l.ch)
 	case ')':

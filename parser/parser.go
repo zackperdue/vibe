@@ -3,6 +3,7 @@ package parser
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/example/vibe/lexer"
 )
@@ -35,6 +36,15 @@ const (
 	ArrayLiteralNode   NodeType = "ArrayLiteral"
 	IndexExprNode    NodeType = "IndexExpr"
 	DotExprNode      NodeType = "DotExpr"
+
+	// Class-related node types
+	ClassDefNode      NodeType = "ClassDef"      // For class definitions
+	MethodDefNode     NodeType = "MethodDef"     // For method definitions
+	ClassInstNode     NodeType = "ClassInst"     // For class instantiation (new)
+	MethodCallNode    NodeType = "MethodCall"    // For method calls
+	SelfExprNode      NodeType = "SelfExpr"      // For self expressions
+	SuperCallNode     NodeType = "SuperCall"     // For super calls
+	InstanceVarNode   NodeType = "InstanceVar"   // For instance variables (@name)
 )
 
 // Operator precedence
@@ -99,7 +109,7 @@ type Identifier struct {
 }
 
 func (i *Identifier) Type() NodeType { return IdentifierNode }
-func (i *Identifier) String() string { return fmt.Sprintf("Identifier(%s)", i.Name) }
+func (i *Identifier) String() string { return i.Name }
 
 // BinaryExpr represents a binary expression (e.g. a + b)
 type BinaryExpr struct {
@@ -411,6 +421,41 @@ func (f *ForStmt) String() string {
 	return fmt.Sprintf("ForStmt(%s in %s, %s)", f.Iterator, iterableStr, bodyStr)
 }
 
+// MethodCall represents a method call expression
+type MethodCall struct {
+	Object Node   // The object on which the method is called
+	Method string // The name of the method
+	Args   []Node // Arguments passed to the method
+}
+
+// Type returns the type of the node
+func (m *MethodCall) Type() NodeType {
+	return MethodCallNode
+}
+
+// String returns a string representation of the method call
+func (m *MethodCall) String() string {
+	var args []string
+	for _, arg := range m.Args {
+		args = append(args, arg.String())
+	}
+
+	return fmt.Sprintf("%s.%s(%s)", m.Object.String(), m.Method, strings.Join(args, ", "))
+}
+
+// SelfExpr represents a 'self' expression in a method
+type SelfExpr struct{}
+
+// Type returns the type of the node
+func (s *SelfExpr) Type() NodeType {
+	return SelfExprNode
+}
+
+// String returns a string representation of the self expression
+func (s *SelfExpr) String() string {
+	return "self"
+}
+
 // Parser parses tokens into an AST
 type Parser struct {
 	l         *lexer.Lexer
@@ -456,39 +501,108 @@ func Parse(l *lexer.Lexer) (*Program, []string) {
 }
 
 func (p *Parser) parseProgram() *Program {
-	program := &Program{Statements: []Node{}}
-
 	fmt.Println("DEBUG: Starting to parse program")
+	program := &Program{}
+	program.Statements = []Node{}
+
 	for p.curToken.Type != lexer.EOF {
-		fmt.Printf("DEBUG: parseProgram - current token: %s, literal: %s\n", p.curToken.Type, p.curToken.Literal)
+		fmt.Printf("DEBUG: parseProgram - current token: %s, literal: %s, peek token: %s, literal: %s\n",
+			p.curToken.Type, p.curToken.Literal, p.peekToken.Type, p.peekToken.Literal)
 
-		// Check specifically for FOR statements
-		if p.curToken.Type == lexer.FOR {
-			fmt.Println("DEBUG: parseProgram - Detected FOR token, directly handling it")
-			fmt.Printf("DEBUG: FOR token details - Type: %s, Literal: %s\n", p.curToken.Type, p.curToken.Literal)
+		// Handle class inheritance pattern
+		if p.curToken.Type == lexer.IDENT && p.peekToken.Type == lexer.INHERITS {
+			fmt.Println("DEBUG: parseProgram - Detected class inheritance pattern, handling it specially")
+			className := p.curToken.Literal
+			p.nextToken() // consume IDENT
+			p.nextToken() // consume INHERITS
+			parentClass := p.curToken.Literal
+			p.nextToken() // consume parent class name
 
-			forStmt := p.parseForStatement()
-			if forStmt != nil {
-				program.Statements = append(program.Statements, forStmt)
-				fmt.Printf("DEBUG: parseProgram - Successfully added FOR statement: %s\n", forStmt.String())
-			} else {
-				fmt.Println("DEBUG: parseProgram - FOR statement parsing failed")
+			// Parse the class definition
+			classDef := p.parseClassDefinition(className, parentClass)
+			if classDef != nil {
+				program.Statements = append(program.Statements, classDef)
+				fmt.Printf("DEBUG: parseProgram - Successfully added CLASS definition: %s\n", classDef.String())
 			}
-		} else {
-			// Parse regular statement
-			stmt := p.parseStatement()
-			if stmt != nil {
-				fmt.Printf("DEBUG: parseProgram - added statement: %T - %s\n", stmt, stmt.String())
-				program.Statements = append(program.Statements, stmt)
-			} else {
-				fmt.Printf("DEBUG: parseProgram - statement was nil\n")
+			continue
+		}
+
+		// Handle regular class definitions
+		if p.curToken.Type == lexer.CLASS {
+			fmt.Println("DEBUG: parseProgram - Detected class definition")
+			classDef := p.parseClassDefinition("", "")
+			if classDef != nil {
+				program.Statements = append(program.Statements, classDef)
+				fmt.Printf("DEBUG: parseProgram - Successfully added CLASS definition: %s\n", classDef.String())
+			}
+
+			fmt.Printf("DEBUG: parseProgram - After class definition, current token: %s, peek token: %s\n",
+				p.curToken.Type, p.peekToken.Type)
+
+			continue
+		}
+
+		// Handle assignment pattern
+		if p.curToken.Type == lexer.IDENT {
+			fmt.Printf("DEBUG: parseProgram - Found identifier: %s, peek token: %s\n", p.curToken.Literal, p.peekToken.Type)
+
+			if p.peekToken.Type == lexer.ASSIGN {
+				fmt.Printf("DEBUG: parseProgram - Detected assignment to variable: %s\n", p.curToken.Literal)
+
+				// Save the variable name
+				name := p.curToken.Literal
+
+				// Skip to '='
+				p.nextToken()
+				fmt.Printf("DEBUG: parseProgram - Now at =, current token: %s\n", p.curToken.Type)
+
+				// Skip '='
+				p.nextToken()
+				fmt.Printf("DEBUG: parseProgram - Now after =, current token: %s, literal: %s\n", p.curToken.Type, p.curToken.Literal)
+
+				// Parse the right side of the assignment
+				value := p.parseExpression(LOWEST)
+				if value == nil {
+					fmt.Println("DEBUG: parseProgram - Failed to parse right side of assignment, skipping to next statement")
+					// Skip to the next statement
+					for p.curToken.Type != lexer.SEMICOLON && p.curToken.Type != lexer.EOF {
+						p.nextToken()
+					}
+					continue
+				}
+
+				fmt.Printf("DEBUG: parseProgram - Parsed right side of assignment: %T - %s\n", value, value.String())
+
+				// Create and add the assignment node
+				assignment := &Assignment{
+					Name:  name,
+					Value: value,
+				}
+
+				program.Statements = append(program.Statements, assignment)
+				fmt.Printf("DEBUG: parseProgram - added assignment: %s\n", assignment.String())
+
+				continue
 			}
 		}
 
-		// Only advance if we haven't reached EOF
+		stmt := p.parseStatement()
+		if stmt != nil {
+			program.Statements = append(program.Statements, stmt)
+			fmt.Printf("DEBUG: parseProgram - added statement: %T - %s\n", stmt, stmt.String())
+		} else {
+			fmt.Printf("DEBUG: parseProgram - statement was nil, skipping token: %s\n", p.curToken.Type)
+		}
+
+		// Only advance to the next token if we haven't reached EOF
 		if p.curToken.Type != lexer.EOF {
 			p.nextToken()
 		}
+	}
+
+	fmt.Printf("DEBUG: Parsed %d statements\n", len(program.Statements))
+	for i, stmt := range program.Statements {
+		fmt.Printf("DEBUG: Statement %d: %T - %s\n", i, stmt, stmt.String())
 	}
 
 	return program
@@ -504,6 +618,10 @@ func (p *Parser) parseStatement() Node {
 			return p.parseAssignment()
 		}
 		return p.parseExpressionStatement()
+	case lexer.ASSIGN:
+		// If we encounter an assignment operator directly, we need to skip it
+		// This can happen when parsing multiple assignments in sequence
+		return nil
 	case lexer.RETURN:
 		return p.parseReturnStatement()
 	case lexer.PRINT:
@@ -517,9 +635,19 @@ func (p *Parser) parseStatement() Node {
 		return p.parseForStatement()
 	case lexer.WHILE:
 		return p.parseWhileStatement()
+	case lexer.CLASS:
+		return p.parseClassDefinition("", "")
+	case lexer.SUPER:
+		return p.parseSuperCall()
 	case lexer.IN, lexer.DO, lexer.END:
 		// These tokens are part of control structures and should be handled by their respective parsers
 		fmt.Printf("DEBUG: Skipping token %s as it should be handled by its control structure parser\n", p.curToken.Type)
+		return nil
+	case lexer.AT:
+		// Handle @ symbol (instance variables)
+		return p.parseInstanceVariable()
+	case lexer.ILLEGAL:
+		// Special handling for any illegal tokens
 		return nil
 	case lexer.INT, lexer.FLOAT, lexer.STRING, lexer.TRUE, lexer.FALSE, lexer.NIL,
 		lexer.LPAREN, lexer.LBRACKET, lexer.LBRACE, lexer.MINUS, lexer.BANG:
@@ -925,12 +1053,32 @@ func (p *Parser) parsePrintStatement() Node {
 }
 
 func (p *Parser) parseAssignment() Node {
-	name := p.curToken.Literal
-	p.nextToken() // Move to '='
-	p.nextToken() // Move past '='
+	debugf("parseAssignment - at token: %s", p.curToken.Type)
 
+	// Save the variable name
+	name := p.curToken.Literal
+
+	// Skip to '='
+	p.nextToken()
+
+	// Skip '='
+	p.nextToken()
+
+	// Parse the right side of the assignment
 	value := p.parseExpression(LOWEST)
-	return &Assignment{Name: name, Value: value}
+	if value == nil {
+		fmt.Println("DEBUG: parseAssignment - Failed to parse right side of assignment")
+		return nil
+	}
+
+	// Create and return the assignment node
+	assignment := &Assignment{
+		Name:  name,
+		Value: value,
+	}
+
+	debugf("parseAssignment - created assignment: %s = %s", name, value.String())
+	return assignment
 }
 
 func (p *Parser) parseExpressionStatement() Node {
@@ -938,89 +1086,126 @@ func (p *Parser) parseExpressionStatement() Node {
 }
 
 func (p *Parser) parseExpression(precedence int) Node {
-	// Prefix parsing functions
-	var left Node
+	fmt.Printf("DEBUG: parseExpression - at token: %s, literal: %s\n", p.curToken.Type, p.curToken.Literal)
 
+	// Check for instance variables (@name)
+	if p.curToken.Type == lexer.AT {
+		return p.parseInstanceVariable()
+	}
+
+	// Check for self keyword
+	if p.curToken.Type == lexer.SELF {
+		return p.parseSelfExpr()
+	}
+
+	// Check for super call
+	if p.curToken.Type == lexer.SUPER {
+		return p.parseSuperCall()
+	}
+
+	// Continue with the existing prefix/infix expression parsing
+	var leftExp Node
+
+	// Prefix expressions
 	switch p.curToken.Type {
 	case lexer.IDENT:
-		left = &Identifier{Name: p.curToken.Literal}
+		leftExp = &Identifier{Name: p.curToken.Literal}
+
+		// Check for generic type parameter like Box<Int>
+		if p.peekToken.Type == lexer.LT {
+			ident := p.curToken.Literal
+			p.nextToken() // Skip to '<'
+
+			// Now we're at '<'
+			p.nextToken() // Skip to the type parameter
+
+			// Parse the type parameter
+			if p.curToken.Type != lexer.IDENT {
+				p.errors = append(p.errors, fmt.Sprintf("Expected type parameter, got %s", p.curToken.Type))
+				return nil
+			}
+
+			typeParam := &Identifier{Name: p.curToken.Literal}
+
+			// Create a binary expression to represent the generic type
+			leftExp = &BinaryExpr{
+				Left:     &Identifier{Name: ident},
+				Operator: "<",
+				Right:    typeParam,
+			}
+
+			// Skip to '>'
+			p.nextToken()
+			if p.curToken.Type != lexer.GT {
+				p.errors = append(p.errors, fmt.Sprintf("Expected '>' after type parameter, got %s", p.curToken.Type))
+				return nil
+			}
+		}
+
 	case lexer.INT:
-		value, err := strconv.ParseInt(p.curToken.Literal, 0, 64)
+		value, err := strconv.ParseFloat(p.curToken.Literal, 64)
 		if err != nil {
-			p.errors = append(p.errors, fmt.Sprintf("Could not parse %s as integer", p.curToken.Literal))
+			p.errors = append(p.errors, fmt.Sprintf("Could not parse %q as integer", p.curToken.Literal))
 			return nil
 		}
-		left = &NumberLiteral{Value: float64(value), IsInt: true}
+		leftExp = &NumberLiteral{Value: value, IsInt: true}
 	case lexer.FLOAT:
 		value, err := strconv.ParseFloat(p.curToken.Literal, 64)
 		if err != nil {
-			p.errors = append(p.errors, fmt.Sprintf("Could not parse %s as float", p.curToken.Literal))
+			p.errors = append(p.errors, fmt.Sprintf("Could not parse %q as float", p.curToken.Literal))
 			return nil
 		}
-		left = &NumberLiteral{Value: value, IsInt: false}
+		leftExp = &NumberLiteral{Value: value, IsInt: false}
 	case lexer.STRING:
-		left = &StringLiteral{Value: p.curToken.Literal}
+		leftExp = &StringLiteral{Value: p.curToken.Literal}
 	case lexer.TRUE:
-		left = &BooleanLiteral{Value: true}
+		leftExp = &BooleanLiteral{Value: true}
 	case lexer.FALSE:
-		left = &BooleanLiteral{Value: false}
+		leftExp = &BooleanLiteral{Value: false}
 	case lexer.NIL:
-		left = &NilLiteral{}
+		leftExp = &NilLiteral{}
 	case lexer.LPAREN:
-		p.nextToken()
-		left = p.parseExpression(LOWEST)
-		if p.curToken.Type != lexer.RPAREN {
-			p.errors = append(p.errors, fmt.Sprintf("Expected ), got %s", p.curToken.Type))
+		p.nextToken() // Consume '('
+		leftExp = p.parseExpression(LOWEST)
+
+		if p.peekToken.Type != lexer.RPAREN {
+			p.errors = append(p.errors, fmt.Sprintf("Expected ')', got %s", p.peekToken.Type))
 			return nil
 		}
+		p.nextToken() // Consume ')'
 	case lexer.LBRACKET:
-		left = p.parseArrayLiteral()
-	case lexer.PLUS, lexer.MINUS, lexer.BANG:
+		leftExp = p.parseArrayLiteral()
+	case lexer.MINUS, lexer.BANG:
 		operator := p.curToken.Literal
-		p.nextToken()
+		p.nextToken() // Consume the operator
 		operand := p.parseExpression(PREFIX)
-		left = &UnaryExpr{
-			Operator: operator,
-			Right:    operand,
-		}
+		leftExp = &UnaryExpr{Operator: operator, Right: operand}
 	default:
-		p.errors = append(p.errors, fmt.Sprintf("No prefix parser for %s", p.curToken.Type))
 		return nil
 	}
 
-	// Infix parsing functions
-	for precedence < p.peekPrecedence() {
-		if !isInfixOperator(p.peekToken.Type) {
-			return left
-		}
+	// Skip to the next token
+	p.nextToken()
 
-		p.nextToken()
-
+	// Now parse any infix expressions
+	for precedence < p.curPrecedence() && p.curToken.Type != lexer.EOF {
 		switch p.curToken.Type {
 		case lexer.PLUS, lexer.MINUS, lexer.ASTERISK, lexer.SLASH, lexer.MODULO,
-				lexer.EQ, lexer.NOT_EQ, lexer.LT, lexer.GT, lexer.LT_EQ, lexer.GT_EQ,
-				lexer.AND, lexer.OR:
-			operator := p.curToken.Literal
-			rightPrecedence := p.curPrecedence()
-			p.nextToken()
-			right := p.parseExpression(rightPrecedence)
-			left = &BinaryExpr{
-				Left:     left,
-				Operator: operator,
-				Right:    right,
-			}
+			lexer.EQ, lexer.NOT_EQ, lexer.LT, lexer.GT, lexer.LT_EQ, lexer.GT_EQ,
+			lexer.AND, lexer.OR:
+			leftExp = p.parseBinaryExpression(leftExp)
 		case lexer.LPAREN:
-			left = p.parseCallExpression(left)
+			leftExp = p.parseCallExpression(leftExp)
 		case lexer.LBRACKET:
-			left = p.parseIndexExpression(left)
+			leftExp = p.parseIndexExpression(leftExp)
 		case lexer.DOT:
-			left = p.parseDotExpression(left)
+			leftExp = p.parseDotExpression(leftExp)
 		default:
-			return left
+			return leftExp
 		}
 	}
 
-	return left
+	return leftExp
 }
 
 // Helper function to check if a token type is an infix operator
@@ -1309,108 +1494,311 @@ func (p *Parser) parseIndexExpression(array Node) Node {
 	return &IndexExpr{Array: array, Index: index}
 }
 
-func (p *Parser) parseDotExpression(object Node) Node {
-	// Skip '.'
+func (p *Parser) parseDotExpression(left Node) Node {
+	debugf("parseDotExpression - at token: %s, left: %s", p.curToken.Type, left.String())
+
+	// Skip the '.' token
 	p.nextToken()
 
-	if p.curToken.Type != lexer.IDENT {
-		p.errors = append(p.errors, fmt.Sprintf("Expected identifier after '.', got %s", p.curToken.Type))
+	// Next token should be the method name or 'new'
+	if p.curToken.Type != lexer.IDENT && p.curToken.Type != lexer.NEW {
+		p.addError(fmt.Sprintf("Expected method name or 'new' after '.', got %s", p.curToken.Type))
 		return nil
 	}
 
-	property := p.curToken.Literal
-	p.nextToken() // Skip property name
-
-	return &DotExpr{Object: object, Property: property}
-}
-
-func (p *Parser) parseForStatement() Node {
-	fmt.Println("DEBUG: Entering parseForStatement")
-	fmt.Printf("DEBUG: Current token: %s, literal: %s\n", p.curToken.Type, p.curToken.Literal)
-	fmt.Printf("DEBUG: Peek token: %s, literal: %s\n", p.peekToken.Type, p.peekToken.Literal)
-
-	forStmt := &ForStmt{}
-
-	// Skip 'for' keyword
-	p.nextToken()
-	fmt.Printf("DEBUG: After 'for', current token: %s, literal: %s\n", p.curToken.Type, p.curToken.Literal)
-
-	// Parse the iterator variable
-	if p.curToken.Type != lexer.IDENT {
-		p.errors = append(p.errors, fmt.Sprintf("Expected identifier for for loop iterator, got %s", p.curToken.Type))
-		fmt.Printf("DEBUG: Error: Expected identifier for iterator, got %s\n", p.curToken.Type)
-		return nil
+	// If it's 'new', parse it as a class instantiation
+	if p.curToken.Type == lexer.NEW {
+		return p.parseClassInstantiation(left)
 	}
-	forStmt.Iterator = p.curToken.Literal
-	fmt.Printf("DEBUG: Iterator: %s\n", forStmt.Iterator)
 
-	// Check for 'in' keyword
+	// Otherwise it's a method call
+	methodCall := &MethodCall{
+		Object: left,
+		Method: p.curToken.Literal,
+		Args:   []Node{},
+	}
+
+	// Skip method name
 	p.nextToken()
-	fmt.Printf("DEBUG: After iterator, current token: %s, literal: %s\n", p.curToken.Type, p.curToken.Literal)
-	if p.curToken.Type != lexer.IN {
-		p.errors = append(p.errors, fmt.Sprintf("Expected 'in' keyword in for loop, got %s", p.curToken.Type))
-		fmt.Printf("DEBUG: Error: Expected 'in', got %s\n", p.curToken.Type)
+
+	// Check for opening parenthesis
+	if p.curToken.Type != lexer.LPAREN {
+		p.addError(fmt.Sprintf("Expected '(' after method name, got %s", p.curToken.Type))
 		return nil
 	}
 
-	// Parse the iterable expression
+	// Skip '('
 	p.nextToken()
-	fmt.Printf("DEBUG: After 'in', current token: %s, literal: %s\n", p.curToken.Type, p.curToken.Literal)
-	forStmt.Iterable = p.parseExpression(LOWEST)
-	if forStmt.Iterable == nil {
-		p.errors = append(p.errors, "Expected iterable expression after 'in'")
-		fmt.Println("DEBUG: Error: Failed to parse iterable expression")
-		return nil
-	}
-	fmt.Printf("DEBUG: Iterable parsed: %s\n", forStmt.Iterable.String())
 
-	// Look for the 'do' keyword after parsing the iterable
-	// The parseExpression might have moved the token position, so we need to check current token first
-	fmt.Printf("DEBUG: After parsing iterable, current token: %s, literal: %s\n", p.curToken.Type, p.curToken.Literal)
+	// Parse arguments if any
+	if p.curToken.Type != lexer.RPAREN {
+		// Parse the first argument
+		arg := p.parseExpression(LOWEST)
+		if arg != nil {
+			methodCall.Args = append(methodCall.Args, arg)
+		}
 
-	// We need to find the 'do' keyword
-	// It might be the current token, the peek token, or we might need to advance
-	foundDo := false
+		// Parse additional arguments
+		for p.peekToken.Type == lexer.COMMA {
+			p.nextToken() // Skip the comma
+			p.nextToken() // Move to the next argument
 
-	// If current token is already 'do', we're good
-	if p.curToken.Type == lexer.DO {
-		foundDo = true
-		fmt.Println("DEBUG: Found 'do' as current token")
-	} else if p.peekToken.Type == lexer.DO {
-		// If next token is 'do', advance to it
-		p.nextToken()
-		foundDo = true
-		fmt.Println("DEBUG: Found 'do' as peek token, advanced to it")
-	} else {
-		// Otherwise, search for 'do' by advancing tokens until we find it or reach EOF/END
-		limit := 3 // Set a reasonable limit to prevent infinite loop
-		for i := 0; i < limit && !foundDo && p.curToken.Type != lexer.EOF && p.curToken.Type != lexer.END; i++ {
-			p.nextToken()
-			fmt.Printf("DEBUG: Searching for 'do', current token: %s\n", p.curToken.Type)
-			if p.curToken.Type == lexer.DO {
-				foundDo = true
-				fmt.Println("DEBUG: Found 'do' while searching")
-				break
+			arg = p.parseExpression(LOWEST)
+			if arg != nil {
+				methodCall.Args = append(methodCall.Args, arg)
 			}
 		}
 	}
 
-	if !foundDo {
-		p.errors = append(p.errors, fmt.Sprintf("Expected 'do' after for loop iterable, got %s", p.curToken.Type))
-		fmt.Printf("DEBUG: Error: Could not find 'do' keyword\n")
+	// Check for closing parenthesis
+	if p.curToken.Type != lexer.RPAREN {
+		p.addError(fmt.Sprintf("Expected ')' to close arguments, got %s", p.curToken.Type))
 		return nil
 	}
 
-	// Move past 'do'
+	// Skip ')'
 	p.nextToken()
-	fmt.Printf("DEBUG: After 'do', current token: %s, literal: %s\n", p.curToken.Type, p.curToken.Literal)
+
+	return methodCall
+}
+
+// parseClassInstantiation parses a class instantiation (ClassName.new(...))
+func (p *Parser) parseClassInstantiation(left Node) Node {
+	fmt.Printf("DEBUG: parseClassInstantiation - at token: %s, literal: %s\n", p.curToken.Type, p.curToken.Literal)
+
+	// Create a ClassInst node
+	classInst := &ClassInst{
+		Class:    left,
+		Args:     []Node{},
+		TypeArgs: []Node{},
+	}
+
+	// Skip the 'new' token
+	p.nextToken()
+	fmt.Printf("DEBUG: parseClassInstantiation - after 'new', token: %s, literal: %s\n", p.curToken.Type, p.curToken.Literal)
+
+	// Check for opening parenthesis
+	if p.curToken.Type != lexer.LPAREN {
+		p.errors = append(p.errors, fmt.Sprintf("Expected '(' after 'new', got %s", p.curToken.Type))
+		return nil
+	}
+
+	// Skip '('
+	p.nextToken()
+	fmt.Printf("DEBUG: parseClassInstantiation - after '(', token: %s, literal: %s\n", p.curToken.Type, p.curToken.Literal)
+
+	// Parse arguments if any
+	if p.curToken.Type != lexer.RPAREN {
+		// Parse the first argument
+		arg := p.parseExpression(LOWEST)
+		if arg != nil {
+			classInst.Args = append(classInst.Args, arg)
+			fmt.Printf("DEBUG: parseClassInstantiation - added first argument: %s\n", arg.String())
+		}
+
+		// Parse additional arguments
+		for p.curToken.Type == lexer.COMMA {
+			fmt.Printf("DEBUG: parseClassInstantiation - found comma, token: %s\n", p.curToken.Type)
+
+			// Skip the comma
+			p.nextToken()
+
+			fmt.Printf("DEBUG: parseClassInstantiation - after comma, token: %s, literal: %s\n", p.curToken.Type, p.curToken.Literal)
+
+			// Parse the next argument
+			arg := p.parseExpression(LOWEST)
+			if arg != nil {
+				classInst.Args = append(classInst.Args, arg)
+				fmt.Printf("DEBUG: parseClassInstantiation - added additional argument: %s\n", arg.String())
+			}
+		}
+	}
+
+	// Check for closing parenthesis
+	if p.curToken.Type != lexer.RPAREN {
+		p.errors = append(p.errors, fmt.Sprintf("Expected ')' to close arguments, got %s", p.curToken.Type))
+		return nil
+	}
+
+	// Skip ')'
+	p.nextToken()
+	fmt.Printf("DEBUG: parseClassInstantiation - after ')', token: %s, literal: %s\n", p.curToken.Type, p.curToken.Literal)
+
+	fmt.Printf("DEBUG: parseClassInstantiation - created class instantiation: %s\n", classInst.String())
+	return classInst
+}
+
+// Helper method to parse an array element
+func (p *Parser) parseArrayElement() Node {
+	// Handle different element types
+	switch p.curToken.Type {
+	case lexer.INT:
+		value, err := strconv.ParseFloat(p.curToken.Literal, 64)
+		if err != nil {
+			p.errors = append(p.errors, fmt.Sprintf("Could not parse %q as integer", p.curToken.Literal))
+			return nil
+		}
+		p.nextToken() // Move past the number
+		return &NumberLiteral{Value: value, IsInt: true}
+
+	case lexer.FLOAT:
+		value, err := strconv.ParseFloat(p.curToken.Literal, 64)
+		if err != nil {
+			p.errors = append(p.errors, fmt.Sprintf("Could not parse %q as float", p.curToken.Literal))
+			return nil
+		}
+		p.nextToken() // Move past the number
+		return &NumberLiteral{Value: value, IsInt: false}
+
+	case lexer.STRING:
+		literal := p.curToken.Literal
+		p.nextToken() // Move past the string
+		return &StringLiteral{Value: literal}
+
+	case lexer.IDENT:
+		name := p.curToken.Literal
+		p.nextToken() // Move past the identifier
+		return &Identifier{Name: name}
+
+	case lexer.TRUE:
+		p.nextToken() // Move past 'true'
+		return &BooleanLiteral{Value: true}
+
+	case lexer.FALSE:
+		p.nextToken() // Move past 'false'
+		return &BooleanLiteral{Value: false}
+
+	case lexer.NIL:
+		p.nextToken() // Move past 'nil'
+		return &NilLiteral{}
+
+	default:
+		p.errors = append(p.errors, fmt.Sprintf("Unexpected token in array: %s", p.curToken.Type))
+		return nil
+	}
+}
+
+func debugf(format string, args ...interface{}) {
+	fmt.Printf("DEBUG: "+format+"\n", args...)
+}
+
+func (p *Parser) addError(msg string) {
+	p.errors = append(p.errors, msg)
+}
+
+func (p *Parser) parseSelfExpr() Node {
+	debugf("parseSelfExpr - at token: %s", p.curToken.Type)
+
+	if p.curToken.Type != lexer.SELF {
+		p.addError(fmt.Sprintf("Expected 'self' keyword, got %s", p.curToken.Type))
+		return nil
+	}
+
+	return &SelfExpr{}
+}
+
+// ClassInst represents a class instantiation expression
+type ClassInst struct {
+	Class    Node   // The class being instantiated
+	Args     []Node // Arguments passed to the constructor
+	TypeArgs []Node // Type arguments for generic classes
+}
+
+// Type returns the type of the node
+func (c *ClassInst) Type() NodeType {
+	return ClassInstNode
+}
+
+// String returns a string representation of the class instantiation
+func (c *ClassInst) String() string {
+	var args []string
+	for _, arg := range c.Args {
+		args = append(args, arg.String())
+	}
+
+	return fmt.Sprintf("ClassInst(%s, args[%s])", c.Class.String(), strings.Join(args, ", "))
+}
+
+// ClassDef represents a class definition
+type ClassDef struct {
+	Name       string            // The name of the class
+	Parent     string            // The parent class (if any)
+	Methods    []Node            // Methods defined in the class
+	Fields     []struct {        // Fields defined in the class
+		Name          string
+		TypeAnnotation struct {
+			TypeName string
+		}
+	}
+	TypeParams []string          // Type parameters for generic classes
+}
+
+// Type returns the type of the node
+func (c *ClassDef) Type() NodeType {
+	return ClassDefNode
+}
+
+// String returns a string representation of the class definition
+func (c *ClassDef) String() string {
+	var methods []string
+	for _, method := range c.Methods {
+		methods = append(methods, method.String())
+	}
+
+	var fields []string
+	for _, field := range c.Fields {
+		fields = append(fields, field.Name)
+	}
+
+	parent := c.Parent
+	if parent == "" {
+		parent = "none"
+	}
+
+	return fmt.Sprintf("ClassDef(%s, parent=%s, methods=%s, fields=%s)",
+		c.Name, parent, strings.Join(methods, ", "), strings.Join(fields, ", "))
+}
+
+// parseForStatement parses a for loop statement
+func (p *Parser) parseForStatement() Node {
+	fmt.Printf("DEBUG: parseForStatement - at token: %s, literal: %s\n", p.curToken.Type, p.curToken.Literal)
+
+	// Skip 'for' token
+	p.nextToken()
+
+	// Parse iterator variable
+	if p.curToken.Type != lexer.IDENT {
+		p.errors = append(p.errors, fmt.Sprintf("Expected iterator variable name, got %s", p.curToken.Type))
+		return nil
+	}
+
+	iterator := p.curToken.Literal
+	p.nextToken()
+
+	// Check for 'in' keyword
+	if p.curToken.Type != lexer.IN {
+		p.errors = append(p.errors, fmt.Sprintf("Expected 'in' after iterator variable, got %s", p.curToken.Type))
+		return nil
+	}
+
+	// Skip 'in' token
+	p.nextToken()
+
+	// Parse iterable expression
+	iterable := p.parseExpression(LOWEST)
+
+	// Check for 'do' keyword
+	if p.curToken.Type != lexer.DO {
+		p.errors = append(p.errors, fmt.Sprintf("Expected 'do' after iterable expression, got %s", p.curToken.Type))
+	} else {
+		p.nextToken() // Skip 'do'
+	}
 
 	// Parse for loop body
-	forStmt.Body = &BlockStmt{Statements: []Node{}}
+	body := &BlockStmt{Statements: []Node{}}
 
 	// Parse statements until we see 'end' or EOF
 	for p.curToken.Type != lexer.END && p.curToken.Type != lexer.EOF {
-		fmt.Printf("DEBUG: In body loop, current token: %s, literal: %s\n", p.curToken.Type, p.curToken.Literal)
 		if p.curToken.Type == lexer.SEMICOLON {
 			p.nextToken()
 			continue
@@ -1418,31 +1806,439 @@ func (p *Parser) parseForStatement() Node {
 
 		stmt := p.parseStatement()
 		if stmt != nil {
-			forStmt.Body.Statements = append(forStmt.Body.Statements, stmt)
-			fmt.Printf("DEBUG: Added statement to body: %s\n", stmt.String())
-		} else {
-			fmt.Printf("DEBUG: Statement was nil, skipping\n")
+			body.Statements = append(body.Statements, stmt)
 		}
-
-		// Advance to the next token only if we're not at the end
-		if p.curToken.Type != lexer.END && p.curToken.Type != lexer.EOF {
-			p.nextToken()
-			fmt.Printf("DEBUG: Advanced to next token: %s, literal: %s\n", p.curToken.Type, p.curToken.Literal)
-		}
+		p.nextToken()
 	}
 
-	// Check that we found the 'end' keyword
-	fmt.Printf("DEBUG: After body, current token: %s, literal: %s\n", p.curToken.Type, p.curToken.Literal)
-	if p.curToken.Type != lexer.END {
-		p.errors = append(p.errors, fmt.Sprintf("Expected 'end' to close for loop, got %s", p.curToken.Type))
-		fmt.Printf("DEBUG: Error: Expected 'end', got %s\n", p.curToken.Type)
+	// Skip 'end' token
+	if p.curToken.Type == lexer.END {
+		p.nextToken()
+	}
+
+	return &ForStmt{
+		Iterator: iterator,
+		Iterable: iterable,
+		Body:     body,
+	}
+}
+
+// parseInstanceVariable parses an instance variable (@name)
+func (p *Parser) parseInstanceVariable() Node {
+	fmt.Printf("DEBUG: parseInstanceVariable - at token: %s, literal: %s\n", p.curToken.Type, p.curToken.Literal)
+
+	// Skip '@' token
+	if p.curToken.Type == lexer.AT {
+		p.nextToken()
+	}
+
+	// Parse variable name
+	if p.curToken.Type != lexer.IDENT {
+		p.errors = append(p.errors, fmt.Sprintf("Expected instance variable name after @, got %s", p.curToken.Type))
 		return nil
 	}
 
-	// Skip 'end'
+	name := p.curToken.Literal
 	p.nextToken()
-	fmt.Printf("DEBUG: After 'end', current token: %s, literal: %s\n", p.curToken.Type, p.curToken.Literal)
 
-	fmt.Println("DEBUG: Successfully parsed for statement")
-	return forStmt
+	return &Identifier{Name: "@" + name}
+}
+
+// parseSuperCall parses a super call (super.method(...) or super(...))
+func (p *Parser) parseSuperCall() Node {
+	fmt.Printf("DEBUG: parseSuperCall - at token: %s, literal: %s\n", p.curToken.Type, p.curToken.Literal)
+
+	// Skip 'super' token
+	p.nextToken()
+
+	// Check if this is a direct super call (super(...)) or a method call (super.method(...))
+	if p.curToken.Type == lexer.LPAREN {
+		// Direct super call
+		// Skip '(' token
+		p.nextToken()
+
+		// Create a method call node for the constructor
+		methodCall := &MethodCall{
+			Object: &Identifier{Name: "super"},
+			Method: "initialize", // Implicit constructor call
+			Args:   []Node{},
+		}
+
+		// Parse arguments if any
+		if p.curToken.Type != lexer.RPAREN {
+			// Parse first argument
+			arg := p.parseExpression(LOWEST)
+			if arg != nil {
+				methodCall.Args = append(methodCall.Args, arg)
+			}
+
+			// Parse additional arguments
+			for p.peekToken.Type == lexer.COMMA {
+				p.nextToken() // Skip comma
+				p.nextToken() // Move to the next argument
+
+				arg = p.parseExpression(LOWEST)
+				if arg != nil {
+					methodCall.Args = append(methodCall.Args, arg)
+				}
+			}
+		}
+
+		// Check for closing parenthesis
+		if p.curToken.Type != lexer.RPAREN {
+			p.errors = append(p.errors, fmt.Sprintf("Expected ')' to close arguments, got %s", p.curToken.Type))
+			return nil
+		}
+
+		// Skip ')' token
+		p.nextToken()
+
+		return methodCall
+	} else if p.curToken.Type == lexer.DOT {
+		// Method call on super (super.method(...))
+		// Skip '.' token
+		p.nextToken()
+
+		// Parse method name
+		if p.curToken.Type != lexer.IDENT {
+			p.errors = append(p.errors, fmt.Sprintf("Expected method name after 'super.', got %s", p.curToken.Type))
+			return nil
+		}
+
+		methodName := p.curToken.Literal
+		p.nextToken()
+
+		// Check for opening parenthesis
+		if p.curToken.Type != lexer.LPAREN {
+			p.errors = append(p.errors, fmt.Sprintf("Expected '(' after method name, got %s", p.curToken.Type))
+			return nil
+		}
+
+		// Skip '(' token
+		p.nextToken()
+
+		// Create a method call node
+		methodCall := &MethodCall{
+			Object: &Identifier{Name: "super"},
+			Method: methodName,
+			Args:   []Node{},
+		}
+
+		// Parse arguments if any
+		if p.curToken.Type != lexer.RPAREN {
+			// Parse first argument
+			arg := p.parseExpression(LOWEST)
+			if arg != nil {
+				methodCall.Args = append(methodCall.Args, arg)
+			}
+
+			// Parse additional arguments
+			for p.peekToken.Type == lexer.COMMA {
+				p.nextToken() // Skip comma
+				p.nextToken() // Move to the next argument
+
+				arg = p.parseExpression(LOWEST)
+				if arg != nil {
+					methodCall.Args = append(methodCall.Args, arg)
+				}
+			}
+		}
+
+		// Check for closing parenthesis
+		if p.curToken.Type != lexer.RPAREN {
+			p.errors = append(p.errors, fmt.Sprintf("Expected ')' to close arguments, got %s", p.curToken.Type))
+			return nil
+		}
+
+		// Skip ')' token
+		p.nextToken()
+
+		return methodCall
+	} else {
+		p.errors = append(p.errors, fmt.Sprintf("Expected '(' or '.' after 'super', got %s", p.curToken.Type))
+		return nil
+	}
+}
+
+// parseBinaryExpression parses a binary expression
+func (p *Parser) parseBinaryExpression(left Node) Node {
+	fmt.Printf("DEBUG: parseBinaryExpression - at token: %s, literal: %s\n", p.curToken.Type, p.curToken.Literal)
+
+	// The current token is the operator
+	operator := p.curToken.Literal
+	precedence := p.curPrecedence()
+
+	// Advance past the operator
+	p.nextToken()
+
+	// Parse the right side of the expression
+	right := p.parseExpression(precedence)
+
+	// Create and return a binary expression node
+	return &BinaryExpr{
+		Left:     left,
+		Operator: operator,
+		Right:    right,
+	}
+}
+
+// parseClassDefinition parses a class definition
+func (p *Parser) parseClassDefinition(className string, parentClass string) Node {
+	fmt.Printf("DEBUG: parseClassDefinition - at token: %s, literal: %s\n", p.curToken.Type, p.curToken.Literal)
+
+	classDef := &ClassDef{
+		Name:       className,
+		Parent:     parentClass,
+		Methods:    []Node{},
+		TypeParams: []string{},
+	}
+
+	// If className is empty, we need to parse it from the token stream
+	if className == "" {
+		// Skip the 'class' token if we're at it
+		if p.curToken.Type == lexer.CLASS {
+			p.nextToken()
+		}
+
+		// Parse the class name
+		if p.curToken.Type != lexer.IDENT {
+			p.errors = append(p.errors, fmt.Sprintf("Expected class name, got %s", p.curToken.Type))
+			return nil
+		}
+
+		classDef.Name = p.curToken.Literal
+		p.nextToken()
+	}
+
+	// Check for generic type parameters
+	if p.curToken.Type == lexer.LT {
+		p.nextToken() // Skip '<'
+
+		// Parse type parameters
+		for p.curToken.Type != lexer.GT && p.curToken.Type != lexer.EOF {
+			if p.curToken.Type == lexer.IDENT {
+				classDef.TypeParams = append(classDef.TypeParams, p.curToken.Literal)
+			}
+
+			p.nextToken()
+
+			// Skip comma if present
+			if p.curToken.Type == lexer.COMMA {
+				p.nextToken()
+			}
+		}
+
+		// Skip '>'
+		if p.curToken.Type == lexer.GT {
+			p.nextToken()
+		}
+	}
+
+	// Check for parent class
+	if p.curToken.Type == lexer.INHERITS {
+		p.nextToken() // Skip 'inherits'
+
+		if p.curToken.Type != lexer.IDENT {
+			p.errors = append(p.errors, fmt.Sprintf("Expected parent class name, got %s", p.curToken.Type))
+			return nil
+		}
+
+		classDef.Parent = p.curToken.Literal
+		p.nextToken()
+	}
+
+	// Parse class body (methods and fields)
+	for p.curToken.Type != lexer.END && p.curToken.Type != lexer.EOF {
+		// Parse method definitions
+		if p.curToken.Type == lexer.FUNCTION {
+			p.nextToken() // Skip 'def'
+
+			// Check if this is a class method (self.method)
+			isClassMethod := false
+			if p.curToken.Type == lexer.SELF {
+				isClassMethod = true
+				p.nextToken() // Skip 'self'
+
+				// Skip the dot
+				if p.curToken.Type != lexer.DOT {
+					p.errors = append(p.errors, fmt.Sprintf("Expected '.' after 'self', got %s", p.curToken.Type))
+					// Skip to next statement
+					for p.curToken.Type != lexer.FUNCTION && p.curToken.Type != lexer.END && p.curToken.Type != lexer.EOF {
+						p.nextToken()
+					}
+					continue
+				}
+				p.nextToken() // Skip '.'
+			}
+
+			// Parse method name
+			if p.curToken.Type != lexer.IDENT {
+				p.errors = append(p.errors, fmt.Sprintf("Expected method name, got %s", p.curToken.Type))
+				// Skip to next statement
+				for p.curToken.Type != lexer.FUNCTION && p.curToken.Type != lexer.END && p.curToken.Type != lexer.EOF {
+					p.nextToken()
+				}
+				continue
+			}
+
+			methodName := p.curToken.Literal
+			p.nextToken()
+
+			// Parse method parameters
+			var parameters []Parameter
+			if p.curToken.Type == lexer.LPAREN {
+				parameters = p.parseFunctionParameters()
+			}
+
+			// Parse return type if present
+			var returnType *struct{ TypeName string }
+			if p.curToken.Type == lexer.COLON {
+				p.nextToken() // Skip ':'
+				if p.curToken.Type == lexer.IDENT {
+					returnType = &struct{ TypeName string }{TypeName: p.curToken.Literal}
+					p.nextToken() // Skip the type name
+				}
+			}
+
+			// Parse method body
+			var methodBody *BlockStmt
+
+			// Create a method block
+			methodBody = &BlockStmt{Statements: []Node{}}
+
+			// Parse method body statements until we see 'end' or the next 'def' or class 'end'
+			for p.curToken.Type != lexer.END && p.curToken.Type != lexer.FUNCTION && p.curToken.Type != lexer.EOF {
+				if p.curToken.Type == lexer.SEMICOLON {
+					p.nextToken()
+					continue
+				}
+
+				stmt := p.parseStatement()
+				if stmt != nil {
+					methodBody.Statements = append(methodBody.Statements, stmt)
+				}
+
+				// Only advance if we're not at the end of the method
+				if p.curToken.Type != lexer.END && p.curToken.Type != lexer.FUNCTION && p.curToken.Type != lexer.EOF {
+					p.nextToken()
+				}
+			}
+
+			// Create and add the method definition
+			method := &MethodDef{
+				Name:          methodName,
+				Parameters:    convertToNodeSlice(parameters),
+				Body:          methodBody,
+				IsClassMethod: isClassMethod,
+				ReturnType:    returnType,
+			}
+
+			classDef.Methods = append(classDef.Methods, method)
+
+			// If we found 'end', it's the end of this method, skip it
+			if p.curToken.Type == lexer.END {
+				p.nextToken()
+			}
+		} else if p.curToken.Type == lexer.IDENT {
+			// This might be a field definition
+			fieldName := p.curToken.Literal
+			// Skip the field name
+			p.nextToken()
+
+			// Check if it's a field definition with type annotation
+			if p.curToken.Type == lexer.COLON {
+				p.nextToken() // Skip ':'
+
+				// Parse the type
+				var typeName string
+				if p.curToken.Type == lexer.IDENT {
+					typeName = p.curToken.Literal
+					p.nextToken()
+				} else {
+					p.errors = append(p.errors, fmt.Sprintf("Expected type name after ':', got %s", p.curToken.Type))
+					// Skip to next statement
+					for p.curToken.Type != lexer.FUNCTION && p.curToken.Type != lexer.END && p.curToken.Type != lexer.EOF {
+						p.nextToken()
+					}
+					continue
+				}
+
+				// Add field to class definition
+				field := struct {
+					Name          string
+					TypeAnnotation struct {
+						TypeName string
+					}
+				}{
+					Name: fieldName,
+				}
+				field.TypeAnnotation.TypeName = typeName
+				classDef.Fields = append(classDef.Fields, field)
+			} else {
+				// Not a field definition, just skip
+				p.nextToken()
+			}
+		} else {
+			// Skip other tokens for now
+			p.nextToken()
+		}
+	}
+
+	// Skip 'end' token for the class
+	if p.curToken.Type == lexer.END {
+		fmt.Printf("DEBUG: parseClassDefinition - Found class end, moving to next token\n")
+		p.nextToken()
+	}
+
+	fmt.Printf("DEBUG: parseClassDefinition - Finished parsing class, current token: %s, literal: %s\n",
+		p.curToken.Type, p.curToken.Literal)
+
+	return classDef
+}
+
+// Helper function to convert Parameter slice to Node slice
+func convertToNodeSlice(params []Parameter) []Node {
+	var nodes []Node
+	for _, param := range params {
+		// Create a simple node for each parameter - you might want a more sophisticated conversion
+		nodes = append(nodes, &Identifier{Name: param.Name})
+	}
+	return nodes
+}
+
+// MethodDef represents a method definition
+type MethodDef struct {
+	Name          string   // The name of the method
+	Parameters    []Node   // The parameters of the method
+	Body          Node     // The body of the method
+	IsClassMethod bool     // Whether this is a class method (static)
+	ReturnType    *struct {
+		TypeName string
+	}
+}
+
+// Type returns the type of the node
+func (m *MethodDef) Type() NodeType {
+	return MethodDefNode
+}
+
+// String returns a string representation of the method definition
+func (m *MethodDef) String() string {
+	var params []string
+	for _, param := range m.Parameters {
+		params = append(params, param.String())
+	}
+
+	methodType := "instance"
+	if m.IsClassMethod {
+		methodType = "class"
+	}
+
+	returnType := "void"
+	if m.ReturnType != nil {
+		returnType = m.ReturnType.TypeName
+	}
+
+	return fmt.Sprintf("MethodDef(%s, %s, params=[%s], returnType=%s)",
+		m.Name, methodType, strings.Join(params, ", "), returnType)
 }
