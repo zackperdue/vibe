@@ -2,297 +2,349 @@ package lexer
 
 import (
 	"fmt"
-	"unicode"
-	"unicode/utf8"
 )
 
-// TokenType represents the type of a token
+// TokenType identifies the type of token
 type TokenType string
 
-// Token represents a lexical token in the Crystal language
+// Token represents a lexical token
 type Token struct {
-	Type  TokenType
-	Value string
+	Type    TokenType
+	Literal string
+	Line    int
+	Column  int
 }
 
-// String representation of a token
-func (t Token) String() string {
-	if t.Value != "" {
-		return fmt.Sprintf("Token(%s, %s)", t.Type, t.Value)
-	}
-	return fmt.Sprintf("Token(%s)", t.Type)
-}
-
-// Token types
+// Define TokenTypes
 const (
-	INTEGER    TokenType = "INTEGER"
-	FLOAT      TokenType = "FLOAT"
-	STRING     TokenType = "STRING"
-	IDENTIFIER TokenType = "IDENTIFIER"
-	KEYWORD    TokenType = "KEYWORD"
-	OPERATOR   TokenType = "OPERATOR"
-	LPAREN     TokenType = "LPAREN"
-	RPAREN     TokenType = "RPAREN"
-	LBRACE     TokenType = "LBRACE"
-	RBRACE     TokenType = "RBRACE"
-	LBRACKET   TokenType = "LBRACKET"
-	RBRACKET   TokenType = "RBRACKET"
-	COMMA      TokenType = "COMMA"
-	DOT        TokenType = "DOT"
-	COLON      TokenType = "COLON"
-	PIPE       TokenType = "PIPE"
-	ARROW      TokenType = "ARROW"
-	NEWLINE    TokenType = "NEWLINE"
-	EOF        TokenType = "EOF"
+	ILLEGAL = "ILLEGAL" // Illegal token
+	EOF     = "EOF"     // End of file
+
+	// Identifiers and literals
+	IDENT  = "IDENT"  // Variable and function names
+	INT    = "INT"    // Integer literals
+	FLOAT  = "FLOAT"  // Floating point literals
+	STRING = "STRING" // String literals
+
+	// Operators
+	ASSIGN   = "="
+	PLUS     = "+"
+	MINUS    = "-"
+	BANG     = "!"
+	ASTERISK = "*"
+	SLASH    = "/"
+
+	LT = "<"
+	GT = ">"
+
+	EQ     = "=="
+	NOT_EQ = "!="
+	LT_EQ  = "<="
+	GT_EQ  = ">="
+
+	AND = "&&"
+	OR  = "||"
+
+	// Delimiters
+	COMMA     = ","
+	SEMICOLON = ";"
+	COLON     = ":"
+	DOT       = "."
+
+	LPAREN   = "("
+	RPAREN   = ")"
+	LBRACE   = "{"
+	RBRACE   = "}"
+	LBRACKET = "["
+	RBRACKET = "]"
+
+	// Keywords
+	FUNCTION = "FUNCTION"
+	LET      = "LET"
+	VAR      = "VAR"
+	TRUE     = "TRUE"
+	FALSE    = "FALSE"
+	IF       = "IF"
+	ELSE     = "ELSE"
+	ELSIF    = "ELSIF"
+	RETURN   = "RETURN"
+	WHILE    = "WHILE"
+	NIL      = "NIL"
+	PRINT    = "PRINT"
 )
 
-// Keywords in the Crystal language
-var keywords = map[string]bool{
-	"def":    true,
-	"end":    true,
-	"if":     true,
-	"else":   true,
-	"elsif":  true,
-	"unless": true,
-	"while":  true,
-	"until":  true,
-	"true":   true,
-	"false":  true,
-	"nil":    true,
-	"puts":   true,
-	"print":  true,
-	"return": true,
-	"int":    true,
-	"float":  true,
-	"string": true,
-	"bool":   true,
-	"any":    true,
-	"Array":  true,
-	"type":   true,
-	"interface": true,
+// keywords maps strings to their keyword TokenType
+var keywords = map[string]TokenType{
+	"def":    FUNCTION,
+	"let":    LET,
+	"var":    VAR,
+	"true":   TRUE,
+	"false":  FALSE,
+	"if":     IF,
+	"else":   ELSE,
+	"elsif":  ELSIF,
+	"return": RETURN,
+	"while":  WHILE,
+	"nil":    NIL,
+	"print":  PRINT,
 }
 
-// Lexer tokenizes input text
+// Lexer analyzes the input and breaks it up into tokens
 type Lexer struct {
-	input      string
-	position   int  // current position in input (points to current char)
-	readPos    int  // current reading position in input (after current char)
-	ch         rune // current char under examination
-	line       int  // current line number
-	hasNewline bool // indicates if last token was a newline (for consecutive newlines)
+	input        string
+	position     int  // current position in input (points to current char)
+	readPosition int  // current reading position in input (after current char)
+	ch           byte // current character being examined
+	line         int  // current line number
+	column       int  // current column number
 }
 
 // New creates a new Lexer
 func New(input string) *Lexer {
-	l := &Lexer{input: input, line: 1}
+	l := &Lexer{input: input, line: 1, column: 0}
 	l.readChar()
 	return l
 }
 
 // readChar reads the next character and advances the position in the input string
 func (l *Lexer) readChar() {
-	if l.readPos >= len(l.input) {
-		l.ch = 0 // EOF
+	if l.readPosition >= len(l.input) {
+		l.ch = 0
 	} else {
-		r, width := utf8.DecodeRuneInString(l.input[l.readPos:])
-		l.ch = r
-		l.position = l.readPos
-		l.readPos += width
+		l.ch = l.input[l.readPosition]
+	}
+	l.position = l.readPosition
+	l.readPosition++
+	l.column++
+
+	// If we just read a newline, increment line counter and reset column
+	if l.ch == '\n' {
+		l.line++
+		l.column = 0
 	}
 }
 
-// peekChar returns the next character without advancing the position
-func (l *Lexer) peekChar() rune {
-	if l.readPos >= len(l.input) {
-		return 0 // EOF
+// peekChar looks at the next character without advancing the position
+func (l *Lexer) peekChar() byte {
+	if l.readPosition >= len(l.input) {
+		return 0
 	}
-	r, _ := utf8.DecodeRuneInString(l.input[l.readPos:])
-	return r
+	return l.input[l.readPosition]
 }
 
-// NextToken returns the next token from the input
+// NextToken returns the next token in the input
 func (l *Lexer) NextToken() Token {
 	var tok Token
 
 	l.skipWhitespace()
 
+	// Remember the starting position of the token
+	line := l.line
+	column := l.column
+
 	switch l.ch {
-	case '#':
-		l.skipComment()
-		return l.NextToken()
-	case '\n':
-		tok = Token{Type: NEWLINE, Value: "\\n"}
-		l.line++
-		l.readChar()
-		return tok
-	case '(':
-		tok = Token{Type: LPAREN, Value: "("}
-		l.readChar()
-	case ')':
-		tok = Token{Type: RPAREN, Value: ")"}
-		l.readChar()
-	case '{':
-		tok = Token{Type: LBRACE, Value: "{"}
-		l.readChar()
-	case '}':
-		tok = Token{Type: RBRACE, Value: "}"}
-		l.readChar()
-	case '[':
-		tok = Token{Type: LBRACKET, Value: "["}
-		l.readChar()
-	case ']':
-		tok = Token{Type: RBRACKET, Value: "]"}
-		l.readChar()
-	case ',':
-		tok = Token{Type: COMMA, Value: ","}
-		l.readChar()
-	case '.':
-		tok = Token{Type: DOT, Value: "."}
-		l.readChar()
-	case ':':
-		tok = Token{Type: COLON, Value: ":"}
-		l.readChar()
-	case '|':
-		tok = Token{Type: PIPE, Value: "|"}
-		l.readChar()
+	case '=':
+		if l.peekChar() == '=' {
+			ch := l.ch
+			l.readChar()
+			tok = Token{Type: EQ, Literal: string(ch) + string(l.ch)}
+		} else {
+			tok = newToken(ASSIGN, l.ch)
+		}
+	case '+':
+		tok = newToken(PLUS, l.ch)
 	case '-':
-		if l.peekChar() == '>' {
+		tok = newToken(MINUS, l.ch)
+	case '!':
+		if l.peekChar() == '=' {
+			ch := l.ch
 			l.readChar()
-			l.readChar()
-			tok = Token{Type: ARROW, Value: "->"}
+			tok = Token{Type: NOT_EQ, Literal: string(ch) + string(l.ch)}
 		} else {
-			operator := string(l.ch)
-			l.readChar()
-			tok = Token{Type: OPERATOR, Value: operator}
+			tok = newToken(BANG, l.ch)
 		}
-	case '"':
-		tok = Token{Type: STRING, Value: l.readString()}
-	case '+', '*', '/', '<', '>', '!', '=', '&':
-		operator := string(l.ch)
-		l.readChar()
-		if l.ch == '=' && (operator == "=" || operator == "<" || operator == ">" || operator == "!") {
-			operator += string(l.ch)
-			l.readChar()
-		}
-		tok = Token{Type: OPERATOR, Value: operator}
-	case 0:
-		tok = Token{Type: EOF, Value: ""}
-	default:
-		if isDigit(l.ch) {
-			return l.readNumber()
-		} else if isLetter(l.ch) {
-			identifier := l.readIdentifier()
-			if keywords[identifier] {
-				return Token{Type: KEYWORD, Value: identifier}
+	case '*':
+		tok = newToken(ASTERISK, l.ch)
+	case '/':
+		// Check for comments
+		if l.peekChar() == '/' {
+			// Skip the rest of the line (comment)
+			l.readChar() // consume the second '/'
+			for l.ch != '\n' && l.ch != 0 {
+				l.readChar()
 			}
-			return Token{Type: IDENTIFIER, Value: identifier}
+			return l.NextToken() // Get the next valid token
 		} else {
-			tok = Token{Type: TokenType(fmt.Sprintf("ILLEGAL(%c)", l.ch)), Value: string(l.ch)}
+			tok = newToken(SLASH, l.ch)
+		}
+	case '<':
+		if l.peekChar() == '=' {
+			ch := l.ch
+			l.readChar()
+			tok = Token{Type: LT_EQ, Literal: string(ch) + string(l.ch)}
+		} else {
+			tok = newToken(LT, l.ch)
+		}
+	case '>':
+		if l.peekChar() == '=' {
+			ch := l.ch
+			l.readChar()
+			tok = Token{Type: GT_EQ, Literal: string(ch) + string(l.ch)}
+		} else {
+			tok = newToken(GT, l.ch)
+		}
+	case '&':
+		if l.peekChar() == '&' {
+			ch := l.ch
+			l.readChar()
+			tok = Token{Type: AND, Literal: string(ch) + string(l.ch)}
+		} else {
+			tok = newToken(ILLEGAL, l.ch)
+		}
+	case '|':
+		if l.peekChar() == '|' {
+			ch := l.ch
+			l.readChar()
+			tok = Token{Type: OR, Literal: string(ch) + string(l.ch)}
+		} else {
+			tok = newToken(ILLEGAL, l.ch)
+		}
+	case ',':
+		tok = newToken(COMMA, l.ch)
+	case ';':
+		tok = newToken(SEMICOLON, l.ch)
+	case ':':
+		tok = newToken(COLON, l.ch)
+	case '.':
+		tok = newToken(DOT, l.ch)
+	case '(':
+		tok = newToken(LPAREN, l.ch)
+	case ')':
+		tok = newToken(RPAREN, l.ch)
+	case '{':
+		tok = newToken(LBRACE, l.ch)
+	case '}':
+		tok = newToken(RBRACE, l.ch)
+	case '[':
+		tok = newToken(LBRACKET, l.ch)
+	case ']':
+		tok = newToken(RBRACKET, l.ch)
+	case '"':
+		tok.Type = STRING
+		tok.Literal = l.readString()
+	case 0:
+		tok.Type = EOF
+		tok.Literal = ""
+	default:
+		if isLetter(l.ch) {
+			tok.Literal = l.readIdentifier()
+			tok.Type = lookupIdent(tok.Literal)
+			tok.Line = line
+			tok.Column = column
+			return tok
+		} else if isDigit(l.ch) {
+			// This handles both integer and floating point numbers
+			return l.readNumber()
+		} else {
+			tok = newToken(ILLEGAL, l.ch)
+		}
+	}
+
+	l.readChar()
+	tok.Line = line
+	tok.Column = column
+	return tok
+}
+
+// readIdentifier reads in an identifier and advances the lexer position
+func (l *Lexer) readIdentifier() string {
+	position := l.position
+	for isLetter(l.ch) || isDigit(l.ch) {
+		l.readChar()
+	}
+	return l.input[position:l.position]
+}
+
+// readNumber reads in a number (integer or float) and advances the lexer position
+func (l *Lexer) readNumber() Token {
+	position := l.position
+	isFloat := false
+
+	// Read digits before decimal point
+	for isDigit(l.ch) {
+		l.readChar()
+	}
+
+	// Check for decimal point
+	if l.ch == '.' && isDigit(l.peekChar()) {
+		isFloat = true
+		l.readChar() // consume the dot
+
+		// Read digits after decimal point
+		for isDigit(l.ch) {
 			l.readChar()
 		}
+	}
+
+	// Get the numeric string
+	numStr := l.input[position:l.position]
+
+	// Create token with appropriate type
+	var tok Token
+	if isFloat {
+		tok = Token{Type: FLOAT, Literal: numStr, Line: l.line, Column: l.column - len(numStr)}
+	} else {
+		tok = Token{Type: INT, Literal: numStr, Line: l.line, Column: l.column - len(numStr)}
 	}
 
 	return tok
 }
 
-// readString reads a string enclosed in double quotes
+// readString reads a string literal
 func (l *Lexer) readString() string {
-	l.readChar()
+	position := l.position + 1 // Skip the opening quote
 
-	var result string
-	for l.ch != 0 && l.ch != '"' {
-		if l.ch == '\\' {
-			l.readChar()
-			switch l.ch {
-			case 'n':
-				result += "\n"
-			case 't':
-				result += "\t"
-			case '"':
-				result += "\""
-			default:
-				result += "\\" + string(l.ch)
-			}
-		} else {
-			result += string(l.ch)
-		}
-		l.readChar()
-	}
-
-	l.readChar()
-	return result
-}
-
-// readNumber reads a number (integer or float)
-func (l *Lexer) readNumber() Token {
-	startPos := l.position
-	for isDigit(l.ch) {
-		l.readChar()
-	}
-
-	if l.ch == '.' && isDigit(l.peekChar()) {
-		l.readChar()
-		for isDigit(l.ch) {
-			l.readChar()
-		}
-		return Token{Type: FLOAT, Value: l.input[startPos:l.position]}
-	}
-
-	return Token{Type: INTEGER, Value: l.input[startPos:l.position]}
-}
-
-// readIdentifier reads an identifier or keyword
-func (l *Lexer) readIdentifier() string {
-	startPos := l.position
-
-	// Special case for "false" keyword - hardcoded fix
-	if l.position+5 <= len(l.input) &&
-	   l.input[l.position:l.position+5] == "false" {
-	   	l.readPos = l.position + 5
-	   	l.position = l.readPos - 1
-	   	l.readChar() // Advance to next character
-	   	return "false"
-	}
-
-	for isLetter(l.ch) || isDigit(l.ch) || l.ch == '_' {
-		l.readChar()
-	}
-	result := l.input[startPos:l.position]
-	return result
-}
-
-// skipWhitespace skips whitespace characters
-func (l *Lexer) skipWhitespace() {
-	for l.ch != 0 && l.ch != '\n' && unicode.IsSpace(l.ch) {
-		l.readChar()
-	}
-}
-
-// skipComment skips a single-line comment
-func (l *Lexer) skipComment() {
-	for l.ch != 0 && l.ch != '\n' {
-		l.readChar()
-	}
-}
-
-// TokenizeAll returns all tokens from the input
-func (l *Lexer) TokenizeAll() []Token {
-	var tokens []Token
 	for {
-		token := l.NextToken()
-		tokens = append(tokens, token)
-		if token.Type == EOF {
+		l.readChar()
+		if l.ch == '"' || l.ch == 0 {
 			break
 		}
 	}
-	return tokens
+
+	return l.input[position:l.position]
 }
 
-// Helper functions
-func isLetter(ch rune) bool {
-	return unicode.IsLetter(ch) || ch == '_'
+// skipWhitespace skips any whitespace characters
+func (l *Lexer) skipWhitespace() {
+	for l.ch == ' ' || l.ch == '\t' || l.ch == '\n' || l.ch == '\r' {
+		l.readChar()
+	}
 }
 
-func isDigit(ch rune) bool {
-	return unicode.IsDigit(ch)
+// isLetter returns true if the character is a letter or underscore
+func isLetter(ch byte) bool {
+	return 'a' <= ch && ch <= 'z' || 'A' <= ch && ch <= 'Z' || ch == '_'
+}
+
+// isDigit returns true if the character is a digit
+func isDigit(ch byte) bool {
+	return '0' <= ch && ch <= '9'
+}
+
+// lookupIdent checks if an identifier is a keyword
+func lookupIdent(ident string) TokenType {
+	if tok, ok := keywords[ident]; ok {
+		return tok
+	}
+	return IDENT
+}
+
+// newToken creates a new token
+func newToken(tokenType TokenType, ch byte) Token {
+	return Token{Type: tokenType, Literal: string(ch)}
+}
+
+// Error returns a formatted lexer error with position information
+func (l *Lexer) Error(message string) string {
+	return fmt.Sprintf("Lexer error at line %d, column %d: %s", l.line, l.column, message)
 }

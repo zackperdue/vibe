@@ -1,0 +1,372 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+---
+description: Comprehensive overview of the Vibe programming language project
+globs: ["**/*.go", "**/*.vi", "**/*.sh"]
+---
+
+# Vibe Programming Language Project Overview
+
+## Introduction
+
+Vibe is a custom programming language implementation written in Go. It features a lexer, parser, interpreter, and type system. Vibe programs use the `.vi` file extension and can be run either in file mode or interactive REPL mode.
+
+## Project Architecture
+
+The project follows a classic compiler/interpreter architecture:
+
+- **Lexer**: Converts source code text into tokens (@lexer/lexer.go)
+- **Parser**: Transforms tokens into an Abstract Syntax Tree (AST) (@parser/parser.go)
+- **Interpreter**: Evaluates the AST to execute the program (@interpreter/interpreter.go)
+- **Types**: Implements the type system (@types/types.go)
+
+### Component Relationships
+
+```
+Source Code (.vi files) → Lexer → Tokens → Parser → AST → Interpreter → Execution
+```
+
+## Language Features
+
+Vibe supports:
+
+- Strong typing system (int, float, string, bool, arrays, functions)
+- Function definitions and calls
+- Array literals and operations
+- Control flow (if/else statements)
+- Basic output with `puts` function
+- Arithmetic and logical operations
+- Variables and assignment
+- Comments with `#`
+
+## Key Files
+
+- @main.go - Entry point for the language runtime
+- @lexer/lexer.go - Tokenization of source code
+- @parser/parser.go - Converting tokens to AST
+- @interpreter/interpreter.go - Executing the AST
+- @types/types.go - Type system implementation
+- @examples/*.vi - Example Vibe programs
+
+## Development Guidelines
+
+### Coding Standards
+
+1. **Go Idioms**: Follow standard Go coding practices
+2. **Error Handling**: Use descriptive error messages in the parser and interpreter
+3. **Testing**: Every component should have comprehensive unit tests
+4. **Documentation**: Comment complex algorithms and data structures
+5. **Performance**: Optimize for readability first, then performance
+
+### Workflow
+
+When implementing new language features:
+
+1. Update the lexer to recognize any new tokens
+2. Extend the parser to handle the new syntax
+3. Implement interpretation logic
+4. Add type checking if applicable
+5. Write tests to verify behavior
+6. Create example programs demonstrating the feature
+
+### Testing Strategy
+
+- Unit tests for each component (@lexer/lexer_test.go, @parser/parser_test.go, etc.)
+- Integration tests that run complete programs
+- Example programs serve as functional tests (@examples/*.vi)
+
+Run tests with:
+```
+./run_tests.sh    # Run all tests
+./run_go_tests.sh # Run Go unit tests
+```
+
+## Language Syntax
+
+Vibe syntax is designed to be clean and expressive:
+
+```ruby
+# Variable declaration
+x = 42
+name = "Vibe"
+
+# Function definition
+fn add(a: int, b: int): int {
+  return a + b
+}
+
+# Function call
+result = add(5, 10)
+
+# Control flow
+if x > 10 {
+  puts "x is greater than 10"
+} else {
+  puts "x is not greater than 10"
+}
+
+# Arrays
+numbers = [1, 2, 3, 4, 5]
+```
+
+## Common Tasks
+
+### Running a Vibe Program
+
+```bash
+go run main.go path/to/program.vi
+```
+
+### Using the REPL
+
+```bash
+go run main.go -i
+```
+
+### Adding a New Feature
+
+1. Define the syntax and semantics
+2. Add tokens to the lexer
+3. Update the parser to handle the new syntax
+4. Implement evaluation in the interpreter
+5. Update type checking if needed
+6. Write tests and examples
+
+## Project Roadmap
+
+Current priorities:
+
+1. Expanding the standard library
+2. Improving error messages and debugging
+3. Optimizing performance
+4. Adding more complex data structures
+5. Implementing modules/imports
+
+## Troubleshooting
+
+Common issues:
+
+1. **Syntax Errors**: Check lexer and parser error messages
+2. **Type Errors**: Ensure types match in operations
+3. **Runtime Errors**: Look for nil values or out-of-bounds accesses
+4. **Performance Issues**: Examine recursive functions and loops
+
+## AI Agent Guidelines
+
+When working with this codebase:
+
+1. **Understanding Context**: Always examine the relationship between lexer, parser, and interpreter when making changes
+2. **Type System**: Respect the strong typing system when suggesting code
+3. **Test-Driven**: Write or update tests before implementing changes
+4. **Examples**: Create example programs that demonstrate new features
+5. **Documentation**: Update comments and documentation for any changes
+6. **Best Practices**: Follow established patterns in the codebase
+
+### Dos and Don'ts
+
+✅ **Do**:
+- Keep the lexer, parser, and interpreter in sync
+- Add comprehensive tests for new features
+- Follow existing naming conventions
+- Document complex algorithms
+- Respect the type system
+
+❌ **Don't**:
+- Mix parsing and interpretation concerns
+- Ignore error handling
+- Break backward compatibility
+- Introduce unnecessary complexity
+- Add features without tests
+
+## Advanced AI Agent Guidelines
+
+### Understanding the Code Structure
+
+AI agents should be aware of the following key patterns in the codebase:
+
+1. **Visitor Pattern**: The interpreter uses a visitor pattern to traverse and evaluate AST nodes. When adding new node types, ensure you implement the necessary visitor methods.
+
+2. **Error Propagation**: Errors are collected during parsing and returned together rather than failing at the first error. Maintain this approach for better user experience.
+
+3. **Type Checking**: Type checking occurs in multiple phases - during parsing for static checks and during runtime for dynamic checks. Both must be updated for new features.
+
+4. **Token Management**: New language features typically start with adding token types in the lexer. The existing token structure must be maintained.
+
+5. **AST Design**: Each language construct has a corresponding AST node. Follow existing patterns when creating new node types.
+
+### Modifying the Lexer
+
+When adding new tokens to the lexer (@lexer/lexer.go):
+
+1. Add new token constants to the token definitions
+2. Update the `LookupIdent` map if adding new keywords
+3. Implement the scanning logic for the new token types
+4. Add test cases in lexer_test.go that verify token recognition
+
+```go
+// Example of adding a new token
+const (
+    // Existing tokens...
+    
+    // New token
+    WHILE = "WHILE"
+    DO    = "DO"
+)
+
+// Update keyword map
+var keywords = map[string]TokenType{
+    // Existing keywords...
+    "while": WHILE,
+    "do":    DO,
+}
+```
+
+### Modifying the Parser
+
+When extending the parser (@parser/parser.go):
+
+1. Add new parsing functions for the syntax construct
+2. Register prefix/infix parsers for new token types if applicable
+3. Ensure proper precedence handling
+4. Add comprehensive error messages for syntax errors
+5. Implement the AST node structure for the new construct
+
+```go
+// Example of adding a new parsing function
+func (p *Parser) parseWhileStatement() ast.Statement {
+    // Implementation details...
+}
+
+// Register in init or constructor
+p.registerPrefix(token.WHILE, p.parseWhileStatement)
+```
+
+### Modifying the Interpreter
+
+When implementing new features in the interpreter (@interpreter/interpreter.go):
+
+1. Add evaluation methods for new AST node types
+2. Ensure type checking is performed before operations
+3. Implement proper scope handling for variables
+4. Return appropriate values and handle errors
+
+```go
+// Example of adding a new evaluation method
+func (i *Interpreter) evalWhileStatement(node *ast.WhileStatement, env *Environment) Object {
+    // Implementation details...
+}
+```
+
+### Debugging and Profiling
+
+AI agents should be aware of how to debug and profile the Vibe language:
+
+1. **AST Visualization**: You can print the AST structure for debugging. Consider adding temporary debug prints when developing.
+
+2. **Execution Tracing**: For complex bugs, add trace logging to the interpreter to track execution flow.
+
+3. **Performance Hotspots**: The interpreter evaluation loop and complex expressions are typical performance bottlenecks.
+
+4. **Memory Usage**: Watch for excessive object creation in tight loops, especially for string operations.
+
+### Breaking Changes
+
+When considering changes that might break backward compatibility:
+
+1. Maintain compatibility layers when possible
+2. Document migration paths for users
+3. Version features appropriately
+4. Add deprecation warnings before removing features
+5. Consider how existing example programs would be affected
+
+### Testing Strategy for AI Agents
+
+1. **Unit Tests First**: Always start by writing unit tests for new features
+
+2. **Integration Testing**: Create test programs that demonstrate the feature in context
+
+3. **Edge Cases**: Explicitly test boundary conditions and error cases
+
+4. **Performance Tests**: For significant changes, benchmark before and after
+
+5. **Regression Suite**: Run the full test suite to ensure no regressions
+
+```go
+// Example of a good test pattern
+func TestNewFeature(t *testing.T) {
+    // Setup
+    input := `code with new feature`
+    expected := &SomeExpectedValue{}
+    
+    // Act
+    actual := someFunction(input)
+    
+    // Assert
+    if !reflect.DeepEqual(actual, expected) {
+        t.Errorf("Expected %v, got %v", expected, actual)
+    }
+    
+    // Edge cases
+    edgeCaseInput := `edge case`
+    // ...test edge cases
+}
+```
+
+### Documentation Requirements
+
+AI agents should maintain and extend documentation:
+
+1. Update language specification for new features
+2. Add inline comments explaining complex logic
+3. Create example programs demonstrating new features
+4. Update error messages to be clear and actionable
+5. Document any performance implications
+
+### Design Philosophy
+
+The Vibe language follows these design principles that should be respected:
+
+1. **Clarity over brevity**: Code should be readable and explicit
+2. **Strong typing**: Types should be enforced consistently
+3. **Predictable behavior**: Similar constructs should behave similarly
+4. **Helpful errors**: Error messages should guide the user to a solution
+5. **Performance awareness**: Consider the performance implications of features
+
+### Commit and PR Guidelines
+
+When submitting changes:
+
+1. Separate changes into logical commits
+2. Include tests with all changes
+3. Update documentation in the same PR
+4. Explain the motivation and approach in commit messages
+5. Reference any relevant issues or discussions
+
+## Sample Workflows
+
+### Adding a New Language Feature
+
+Example workflow for adding a "while" loop:
+
+1. Add new tokens to lexer (WHILE, DO, END)
+2. Extend parser to recognize while loop syntax
+3. Create AST node for while loops
+4. Implement evaluation in interpreter
+5. Add type checking
+6. Write tests
+7. Create example programs
+
+### Fixing a Bug
+
+1. Write a test case that reproduces the bug
+2. Identify which component is responsible (lexer, parser, interpreter)
+3. Fix the issue while maintaining backward compatibility
+4. Verify tests pass
+5. Update documentation if needed
+
+## Conclusion
+
+The Vibe language project aims to be a clean, expressive, and strongly-typed language. By following these guidelines and understanding the architecture, you can effectively contribute to its development and evolution.

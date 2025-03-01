@@ -1,129 +1,106 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"strings"
 
-	"github.com/example/crystal/interpreter"
-	"github.com/example/crystal/lexer"
-	"github.com/example/crystal/parser"
-	"github.com/example/crystal/types"
+	"github.com/example/vibe/interpreter"
+	"github.com/example/vibe/lexer"
+	"github.com/example/vibe/parser"
 )
 
 func main() {
-	if len(os.Args) < 2 {
-		fmt.Println("Usage: crystal <filename> or crystal -i (for interactive mode)")
-		os.Exit(1)
+	args := os.Args[1:]
+
+	if len(args) == 0 {
+		fmt.Println("Usage: vibe <filename> or vibe -i (for interactive mode)")
+		return
 	}
 
-	if os.Args[1] == "-i" {
-		runREPL()
-	} else {
-		runFile(os.Args[1])
+	if args[0] == "-i" {
+		runInteractiveMode()
+		return
 	}
+
+	filename := args[0]
+	if !strings.HasSuffix(filename, ".vi") {
+		filename = filename + ".vi"
+	}
+
+	source, err := ioutil.ReadFile(filename)
+	if err != nil {
+		fmt.Printf("Error reading file: %s\n", err)
+		return
+	}
+
+	runProgram(string(source))
 }
 
-func runREPL() {
-	fmt.Println("Crystal Programming Language REPL")
+func runInteractiveMode() {
+	fmt.Println("Vibe Programming Language REPL")
 	fmt.Println("Type 'exit' to quit")
-	fmt.Println("Type checking is enabled - type annotations supported")
 
 	interp := interpreter.New()
-	var input string
+	scanner := bufio.NewScanner(os.Stdin)
 
 	for {
 		fmt.Print(">> ")
-		fmt.Scanln(&input)
-
-		if input == "exit" {
+		if !scanner.Scan() {
 			break
 		}
 
-		// Ensure the input has a newline at the end
-		if !strings.HasSuffix(input, "\n") {
-			input += "\n"
+		line := scanner.Text()
+		if line == "exit" {
+			break
 		}
 
-		// Create lexer
-		l := lexer.New(input)
+		// Create a lexer from the input
+		l := lexer.New(line)
 
-		// Parse input
+		// Parse the input
 		program, errors := parser.Parse(l)
 
 		if len(errors) > 0 {
-			for _, err := range errors {
-				fmt.Printf("Error: %s\n", err)
-			}
+			printParserErrors(errors)
 			continue
 		}
 
-		// Evaluate program
+		// Evaluate the program
 		result := interp.Eval(program)
-
-		// Only print the result if it's not nil
-		if result.Type() != "NIL" {
-			fmt.Printf("=> %s (type: %s)\n", result.Inspect(), formatType(result.CrystalType()))
+		if result != nil {
+			fmt.Printf("=> %s : %s\n", result.Inspect(), result.VibeType())
 		}
 	}
 }
 
-func runFile(filename string) {
-	// Read file
-	data, err := ioutil.ReadFile(filename)
-	if err != nil {
-		fmt.Printf("Error reading file: %s\n", err)
-		os.Exit(1)
-	}
+func runProgram(source string) {
+	// Create a lexer from the source code
+	l := lexer.New(source)
 
-	// Create lexer
-	l := lexer.New(string(data))
-
-	// Parse input
+	// Parse the input
 	program, errors := parser.Parse(l)
 
 	if len(errors) > 0 {
-		fmt.Printf("Parser errors in %s:\n", filename)
-		for _, err := range errors {
-			fmt.Printf("  - %s\n", err)
-		}
-		os.Exit(1)
+		printParserErrors(errors)
+		return
 	}
 
-	// Create interpreter and evaluate program
+	// Create an interpreter and evaluate the program
 	interp := interpreter.New()
 	result := interp.Eval(program)
 
-	// If the result is an error, print it and exit
-	if errValue, ok := result.(*interpreter.StringValue); ok {
-		if strings.HasPrefix(errValue.Value, "Type error:") {
-			fmt.Printf("Type error in %s: %s\n", filename, errValue.Value)
-			os.Exit(1)
-		}
+	// The result is the last evaluated statement
+	if result != nil && result.Type() != "NIL" {
+		fmt.Printf("Result: %s : %s\n", result.Inspect(), result.VibeType())
 	}
 }
 
-// Helper function to format Crystal types for display
-func formatType(t types.Type) string {
-	switch t := t.(type) {
-	case types.BasicType:
-		return string(t)
-	case types.ArrayType:
-		return fmt.Sprintf("Array<%s>", formatType(t.ElementType))
-	case types.FunctionType:
-		params := []string{}
-		for _, p := range t.ParameterTypes {
-			params = append(params, formatType(p))
-		}
-		return fmt.Sprintf("(%s) -> %s", strings.Join(params, ", "), formatType(t.ReturnType))
-	case types.UnionType:
-		types := []string{}
-		for _, t := range t.Types {
-			types = append(types, formatType(t))
-		}
-		return strings.Join(types, " | ")
-	default:
-		return "unknown"
+func printParserErrors(errors []string) {
+	fmt.Println("Parser errors:")
+	for _, err := range errors {
+		fmt.Printf("\t%s\n", err)
 	}
 }

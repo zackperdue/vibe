@@ -21,13 +21,13 @@ func TestFalseToken(t *testing.T) {
 
 	// Print the token
 	tok := l.NextToken()
-	fmt.Printf("Token: Type=%s, Value=%q\n", tok.Type, tok.Value)
+	fmt.Printf("Token: Type=%s, Value=%q\n", tok.Type, tok.Literal)
 
-	if tok.Value != "false" {
-		t.Errorf("Expected token value to be 'false', got %q", tok.Value)
+	if tok.Literal != "false" {
+		t.Errorf("Expected token value to be 'false', got %q", tok.Literal)
 	}
 
-	if tok.Type != KEYWORD {
-		t.Errorf("Expected token type to be KEYWORD, got %s", tok.Type)
+	if tok.Type != FALSE {
+		t.Errorf("Expected token type to be FALSE, got %s", tok.Type)
 	}
 }

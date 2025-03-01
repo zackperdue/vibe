@@ -27,7 +27,7 @@ def add(x, y) {
 	for {
 		tok := l.NextToken()
 		tokens = append(tokens, tok)
-		if tok.Type == "EOF" {
+		if tok.Type == EOF {
 			break
 		}
 	}
@@ -39,15 +39,15 @@ def add(x, y) {
 
 	// Check for expected token types
 	expectedTypes := map[TokenType]bool{
-		"IDENTIFIER": false,
-		"INTEGER":    false,
-		"KEYWORD":    false,
-		"OPERATOR":   false,
-		"STRING":     false,
-		"LPAREN":     false,
-		"RPAREN":     false,
-		"LBRACE":     false,
-		"RBRACE":     false,
+		IDENT:    false,
+		INT:      false,
+		FUNCTION: false,
+		ASSIGN:   false,
+		STRING:   false,
+		LPAREN:   false,
+		RPAREN:   false,
+		LBRACE:   false,
+		RBRACE:   false,
 	}
 
 	// Check for expected values
@@ -71,8 +71,8 @@ def add(x, y) {
 		if _, exists := expectedTypes[tok.Type]; exists {
 			expectedTypes[tok.Type] = true
 		}
-		if _, exists := expectedValues[tok.Value]; exists {
-			expectedValues[tok.Value] = true
+		if _, exists := expectedValues[tok.Literal]; exists {
+			expectedValues[tok.Literal] = true
 		}
 	}
 
@@ -98,26 +98,20 @@ func TestStringTokens(t *testing.T) {
 
 	// First token should be a string
 	tok1 := l.NextToken()
-	if tok1.Type != "STRING" {
+	if tok1.Type != STRING {
 		t.Fatalf("Expected STRING token type, got %s", tok1.Type)
 	}
-	if tok1.Value != "hello" {
-		t.Fatalf("Expected string value 'hello', got %s", tok1.Value)
+	if tok1.Literal != "hello" {
+		t.Fatalf("Expected string value 'hello', got %s", tok1.Literal)
 	}
 
-	// Skip any spacers
-	for {
-		tok := l.NextToken()
-		if tok.Type == "STRING" || tok.Type == "EOF" {
-			// Second token should be a string
-			if tok.Type != "STRING" {
-				t.Fatalf("Expected STRING token type, got %s", tok.Type)
-			}
-			if tok.Value != "world" {
-				t.Fatalf("Expected string value 'world', got %s", tok.Value)
-			}
-			break
-		}
+	// Second token should be a string
+	tok2 := l.NextToken()
+	if tok2.Type != STRING {
+		t.Fatalf("Expected STRING token type, got %s", tok2.Type)
+	}
+	if tok2.Literal != "world" {
+		t.Fatalf("Expected string value 'world', got %s", tok2.Literal)
 	}
 }
 
@@ -128,46 +122,81 @@ func TestNumberTokens(t *testing.T) {
 
 	// Test first number (5)
 	tok := l.NextToken()
-	if tok.Type != "INTEGER" && tok.Type != "FLOAT" {
-		t.Fatalf("Expected INTEGER or FLOAT token type, got %s", tok.Type)
+	if tok.Type != INT {
+		t.Fatalf("Expected INT token type, got %s", tok.Type)
 	}
-	if tok.Value != "5" {
-		t.Fatalf("Expected value 5, got %s", tok.Value)
-	}
-
-	// Skip whitespace/newline
-	for {
-		tok = l.NextToken()
-		if tok.Type == "INTEGER" || tok.Type == "FLOAT" || tok.Type == "EOF" {
-			break
-		}
+	if tok.Literal != "5" {
+		t.Fatalf("Expected value 5, got %s", tok.Literal)
 	}
 
 	// Test second number (10)
-	if tok.Type != "INTEGER" && tok.Type != "FLOAT" {
-		t.Fatalf("Expected INTEGER or FLOAT token type, got %s", tok.Type)
+	tok = l.NextToken()
+	if tok.Type != INT {
+		t.Fatalf("Expected INT token type, got %s", tok.Type)
 	}
-	if tok.Value != "10" {
-		t.Fatalf("Expected value 10, got %s", tok.Value)
-	}
-
-	// Skip whitespace/newline
-	for {
-		tok = l.NextToken()
-		if tok.Type == "INTEGER" || tok.Type == "FLOAT" || tok.Type == "EOF" {
-			break
-		}
+	if tok.Literal != "10" {
+		t.Fatalf("Expected value 10, got %s", tok.Literal)
 	}
 
 	// Test third number (3.14)
-	if tok.Type != "INTEGER" && tok.Type != "FLOAT" {
-		t.Fatalf("Expected INTEGER or FLOAT token type, got %s", tok.Type)
+	tok = l.NextToken()
+	if tok.Type != FLOAT {
+		t.Fatalf("Expected FLOAT token type, got %s", tok.Type)
+	}
+	if tok.Literal != "3.14" {
+		t.Fatalf("Expected value 3.14, got %s", tok.Literal)
+	}
+}
+
+func TestKeywords(t *testing.T) {
+	input := `def let var true false if else elsif return while nil print`
+
+	l := New(input)
+
+	expectedTokens := []TokenType{
+		FUNCTION, LET, VAR, TRUE, FALSE, IF, ELSE, ELSIF, RETURN, WHILE, NIL, PRINT,
 	}
 
-	// The lexer might round or format the float differently
-	// Just check that it starts with "3."
-	if len(tok.Value) < 2 || tok.Value[:2] != "3." {
-		t.Fatalf("Expected value starting with 3., got %s", tok.Value)
+	for i, expected := range expectedTokens {
+		tok := l.NextToken()
+		if tok.Type != expected {
+			t.Fatalf("Token %d: expected %s, got %s", i, expected, tok.Type)
+		}
+	}
+}
+
+func TestOperators(t *testing.T) {
+	input := `= + - ! * / < > == != <= >= && ||`
+
+	l := New(input)
+
+	expectedTokens := []TokenType{
+		ASSIGN, PLUS, MINUS, BANG, ASTERISK, SLASH,
+		LT, GT, EQ, NOT_EQ, LT_EQ, GT_EQ, AND, OR,
+	}
+
+	for i, expected := range expectedTokens {
+		tok := l.NextToken()
+		if tok.Type != expected {
+			t.Fatalf("Token %d: expected %s, got %s", i, expected, tok.Type)
+		}
+	}
+}
+
+func TestDelimiters(t *testing.T) {
+	input := `, ; : . ( ) { } [ ]`
+
+	l := New(input)
+
+	expectedTokens := []TokenType{
+		COMMA, SEMICOLON, COLON, DOT, LPAREN, RPAREN, LBRACE, RBRACE, LBRACKET, RBRACKET,
+	}
+
+	for i, expected := range expectedTokens {
+		tok := l.NextToken()
+		if tok.Type != expected {
+			t.Fatalf("Token %d: expected %s, got %s", i, expected, tok.Type)
+		}
 	}
 }
 
@@ -191,7 +220,7 @@ arr[2] = 10;`
 	for {
 		tok := l.NextToken()
 		tokens = append(tokens, tok)
-		if tok.Type == "EOF" {
+		if tok.Type == EOF {
 			break
 		}
 	}
@@ -204,7 +233,7 @@ arr[2] = 10;`
 	// Verify we have def keyword
 	defFound := false
 	for _, tok := range tokens {
-		if tok.Type == "KEYWORD" && tok.Value == "def" {
+		if tok.Type == FUNCTION && tok.Literal == "def" {
 			defFound = true
 			break
 		}
@@ -230,7 +259,7 @@ func TestDebugTokens(t *testing.T) {
 	fmt.Println("DEBUG TOKENS:")
 	for {
 		tok := l.NextToken()
-		fmt.Printf("Token: Type=%s, Value=%q\n", tok.Type, tok.Value)
+		fmt.Printf("Token: Type=%s, Value=%q\n", tok.Type, tok.Literal)
 		if tok.Type == "EOF" {
 			break
 		}

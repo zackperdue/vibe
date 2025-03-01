@@ -3,7 +3,7 @@ package parser
 import (
 	"testing"
 
-	"github.com/example/crystal/lexer"
+	"github.com/example/vibe/lexer"
 )
 
 func TestSimpleExpressionParsing(t *testing.T) {

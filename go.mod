@@ -1,3 +1,3 @@
-module github.com/example/crystal
+module github.com/example/vibe
 
-go 1.23.0
+go 1.20

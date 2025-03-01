@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/example/crystal/lexer"
-	"github.com/example/crystal/parser"
+	"github.com/example/vibe/lexer"
+	"github.com/example/vibe/parser"
 )
 
 func TestEvalIntegerExpression(t *testing.T) {

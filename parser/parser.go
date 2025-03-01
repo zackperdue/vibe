@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/example/crystal/lexer"
+	"github.com/example/vibe/lexer"
 )
 
 // Different types of AST nodes
@@ -30,6 +30,23 @@ const (
 	TypeAnnotationNode NodeType = "TypeAnnotation"
 	TypeDeclarationNode NodeType = "TypeDeclaration"
 	VariableDeclNode NodeType = "VariableDecl"
+	UnaryExprNode    NodeType = "UnaryExpr"
+	ArrayLiteralNode   NodeType = "ArrayLiteral"
+	IndexExprNode    NodeType = "IndexExpr"
+	DotExprNode      NodeType = "DotExpr"
+)
+
+// Operator precedence
+const (
+	LOWEST     = 1
+	EQUALS     = 2  // ==
+	LESSGREATER = 3  // > or <
+	SUM        = 4  // +
+	PRODUCT    = 5  // *
+	PREFIX     = 6  // -X or !X
+	CALL       = 7  // myFunction(X)
+	INDEX      = 8  // array[index]
+	DOT        = 9  // obj.property
 )
 
 // Node represents a node in the AST
@@ -295,6 +312,60 @@ func (v *VariableDecl) String() string {
 	return fmt.Sprintf("VarDecl(%s: %s = %s)", v.Name, v.TypeAnnotation.String(), initialValue)
 }
 
+// UnaryExpr represents a unary expression like !x or -5
+type UnaryExpr struct {
+	Operator string
+	Right    Node
+}
+
+func (u *UnaryExpr) Type() NodeType { return UnaryExprNode }
+func (u *UnaryExpr) String() string {
+	if u.Right == nil {
+		return fmt.Sprintf("(%s<nil>)", u.Operator)
+	}
+	return fmt.Sprintf("(%s%s)", u.Operator, u.Right.String())
+}
+
+// ArrayLiteral represents an array literal
+type ArrayLiteral struct {
+	Elements []Node
+}
+
+func (a *ArrayLiteral) Type() NodeType { return ArrayLiteralNode }
+func (a *ArrayLiteral) String() string {
+	result := "["
+	for i, elem := range a.Elements {
+		if i > 0 {
+			result += ", "
+		}
+		result += elem.String()
+	}
+	result += "]"
+	return result
+}
+
+// IndexExpr represents an index expression
+type IndexExpr struct {
+	Array Node
+	Index Node
+}
+
+func (i *IndexExpr) Type() NodeType { return IndexExprNode }
+func (i *IndexExpr) String() string {
+	return fmt.Sprintf("%s[%s]", i.Array.String(), i.Index.String())
+}
+
+// DotExpr represents a dot expression
+type DotExpr struct {
+	Object   Node
+	Property string
+}
+
+func (d *DotExpr) Type() NodeType { return DotExprNode }
+func (d *DotExpr) String() string {
+	return fmt.Sprintf("%s.%s", d.Object.String(), d.Property)
+}
+
 // Parser parses tokens into an AST
 type Parser struct {
 	l         *lexer.Lexer
@@ -321,15 +392,17 @@ func (p *Parser) Errors() []string {
 	return p.errors
 }
 
+// Parse function creates a new parser and parses the program
+func Parse(l *lexer.Lexer) (*Program, []string) {
+	p := New(l)
+	program := p.parseProgram()
+	return program, p.errors
+}
+
 func (p *Parser) parseProgram() *Program {
 	program := &Program{Statements: []Node{}}
 
 	for p.curToken.Type != lexer.EOF {
-		if p.curToken.Type == lexer.NEWLINE {
-			p.nextToken()
-			continue
-		}
-
 		stmt := p.parseStatement()
 		if stmt != nil {
 			program.Statements = append(program.Statements, stmt)
@@ -342,201 +415,153 @@ func (p *Parser) parseProgram() *Program {
 
 func (p *Parser) parseStatement() Node {
 	switch p.curToken.Type {
-	case lexer.KEYWORD:
-		switch p.curToken.Value {
-		case "def":
-			return p.parseFunctionDefinition()
-		case "if":
-			return p.parseIfStatement()
-		case "while":
-			return p.parseWhileStatement()
-		case "return":
-			return p.parseReturnStatement()
-		case "puts", "print":
-			return p.parsePrintStatement()
-		case "type":
-			return p.parseTypeDeclaration()
-		}
-	case lexer.IDENTIFIER:
-		// Check if it's a variable declaration with type annotation
-		if p.peekToken.Type == lexer.COLON {
-			return p.parseVariableDeclaration()
-		}
-
-		if p.peekToken.Type == lexer.OPERATOR && p.peekToken.Value == "=" {
+	case lexer.FUNCTION:
+		return p.parseFunctionDefinition()
+	case lexer.IF:
+		return p.parseIfStatement()
+	case lexer.WHILE:
+		return p.parseWhileStatement()
+	case lexer.RETURN:
+		return p.parseReturnStatement()
+	case lexer.PRINT:
+		return p.parsePrintStatement()
+	case lexer.LET, lexer.VAR:
+		return p.parseVariableDeclaration()
+	case lexer.IDENT:
+		// Check if it's an assignment
+		if p.peekToken.Type == lexer.ASSIGN {
 			return p.parseAssignment()
 		}
 		return p.parseExpressionStatement()
+	default:
+		return p.parseExpressionStatement()
 	}
-
-	return p.parseExpressionStatement()
 }
 
 func (p *Parser) parseFunctionDefinition() Node {
-	// Skip 'def' keyword
-	p.nextToken()
+	funcDef := &FunctionDef{}
 
-	if p.curToken.Type != lexer.IDENTIFIER {
+	// Function name
+	p.nextToken()
+	if p.curToken.Type != lexer.IDENT {
 		p.errors = append(p.errors, fmt.Sprintf("Expected function name, got %s", p.curToken.Type))
 		return nil
 	}
+	funcDef.Name = p.curToken.Literal
 
-	name := p.curToken.Value
+	// Parameters
 	p.nextToken()
-
 	if p.curToken.Type != lexer.LPAREN {
-		p.errors = append(p.errors, fmt.Sprintf("Expected '(', got %s", p.curToken.Type))
+		p.errors = append(p.errors, fmt.Sprintf("Expected '(' after function name, got %s", p.curToken.Type))
 		return nil
 	}
-	p.nextToken()
 
-	// Parse parameters
-	var parameters []string
-	var paramTypes []*TypeAnnotation
+	funcDef.Parameters, funcDef.ParamTypes = p.parseFunctionParameters()
 
-	if p.curToken.Type != lexer.RPAREN {
-		// Parse parameters with type annotations
-		for {
-			if p.curToken.Type != lexer.IDENTIFIER {
-				p.errors = append(p.errors, fmt.Sprintf("Expected parameter name, got %s", p.curToken.Type))
-				break
-			}
-
-			paramName := p.curToken.Value
-			parameters = append(parameters, paramName)
-			p.nextToken()
-
-			// Check for type annotation
-			var paramType *TypeAnnotation
-			if p.curToken.Type == lexer.COLON {
-				p.nextToken() // Skip ':'
-				paramType = p.parseTypeAnnotation()
-			} else {
-				// Default to 'any' type if no annotation
-				paramType = &TypeAnnotation{TypeName: "any"}
-			}
-
-			paramTypes = append(paramTypes, paramType)
-
-			if p.curToken.Type != lexer.COMMA {
-				break
-			}
-
-			p.nextToken() // Skip ','
-		}
+	// Check for return type annotation
+	if p.curToken.Type == lexer.COLON {
+		p.nextToken()
+		funcDef.ReturnType = p.parseTypeAnnotation()
 	}
 
-	if p.curToken.Type != lexer.RPAREN {
-		p.errors = append(p.errors, fmt.Sprintf("Expected ')', got %s", p.curToken.Type))
+	// Function body
+	if p.curToken.Type != lexer.LBRACE {
+		p.errors = append(p.errors, fmt.Sprintf("Expected '{' to start function body, got %s", p.curToken.Type))
 		return nil
 	}
-	p.nextToken()
 
-	// Parse return type
-	var returnType *TypeAnnotation
-	if p.curToken.Type == lexer.ARROW {
-		p.nextToken() // Skip '->'
-		returnType = p.parseTypeAnnotation()
-	} else {
-		// Default return type is 'any'
-		returnType = &TypeAnnotation{TypeName: "any"}
-	}
+	funcDef.Body = p.parseBlockStatement()
 
-	// Function body starts immediately, no need for brackets
-	body := p.parseBlockStatement("end")
-
-	return &FunctionDef{
-		Name:       name,
-		Parameters: parameters,
-		ParamTypes: paramTypes,
-		ReturnType: returnType,
-		Body:       body,
-	}
+	return funcDef
 }
 
 func (p *Parser) parseTypeAnnotation() *TypeAnnotation {
+	typeAnnotation := &TypeAnnotation{}
 	var typeName string
 
-	if p.curToken.Type == lexer.IDENTIFIER || p.curToken.Type == lexer.KEYWORD {
-		typeName = p.curToken.Value
+	if p.curToken.Type == lexer.IDENT || p.curToken.Type == lexer.FUNCTION ||
+	   p.curToken.Type == lexer.TRUE || p.curToken.Type == lexer.FALSE ||
+	   p.curToken.Type == lexer.NIL {
+		typeName = p.curToken.Literal
 		p.nextToken()
 	} else {
 		p.errors = append(p.errors, fmt.Sprintf("Expected type name, got %s", p.curToken.Type))
 		return nil
 	}
 
+	typeAnnotation.TypeName = typeName
+
 	// Check for generic type parameters like Array<string>
 	var typeParams []Node
-	if p.curToken.Type == lexer.OPERATOR && p.curToken.Value == "<" {
+	if p.curToken.Type == lexer.LT {
 		p.nextToken() // Skip '<'
 
 		// Parse the type parameter(s)
-		for p.curToken.Type != lexer.OPERATOR || p.curToken.Value != ">" {
+		for p.curToken.Type != lexer.GT {
 			if p.curToken.Type == lexer.EOF {
 				p.errors = append(p.errors, "Unexpected EOF while parsing type parameters")
 				break
 			}
 
-			param := p.parseTypeAnnotation()
-			if param != nil {
-				typeParams = append(typeParams, param)
+			// Parse the type parameter (which is another type annotation)
+			paramType := p.parseTypeAnnotation()
+			if paramType != nil {
+				typeParams = append(typeParams, paramType)
 			}
 
-			// Skip comma if present
+			// Check for comma
 			if p.curToken.Type == lexer.COMMA {
-				p.nextToken()
+				p.nextToken() // Skip ','
 			}
 		}
 
-		if p.curToken.Type == lexer.OPERATOR && p.curToken.Value == ">" {
+		if p.curToken.Type == lexer.GT {
 			p.nextToken() // Skip '>'
 		}
 	}
 
 	// Handle union types with |
-	if p.curToken.Type == lexer.PIPE {
+	if p.curToken.Type == lexer.OR {
 		p.nextToken() // Skip '|'
 		rightType := p.parseTypeAnnotation()
 		if rightType != nil {
-			// Create a special union type annotation
-			return &TypeAnnotation{
+			// Create a union type
+			unionType := &TypeAnnotation{
 				TypeName: "union",
 				TypeParams: []Node{
-					&TypeAnnotation{TypeName: typeName, TypeParams: typeParams},
+					typeAnnotation,
 					rightType,
 				},
 			}
+			return unionType
 		}
 	}
 
-	return &TypeAnnotation{TypeName: typeName, TypeParams: typeParams}
+	typeAnnotation.TypeParams = typeParams
+	return typeAnnotation
 }
 
 func (p *Parser) parseTypeDeclaration() *TypeDeclaration {
 	p.nextToken() // Skip 'type'
 
-	if p.curToken.Type != lexer.IDENTIFIER {
+	if p.curToken.Type != lexer.IDENT {
 		p.errors = append(p.errors, "Expected type name after 'type' keyword")
 		return nil
 	}
 
-	name := p.curToken.Value
+	name := p.curToken.Literal
 	p.nextToken()
 
-	if p.curToken.Type != lexer.OPERATOR || p.curToken.Value != "=" {
+	if p.curToken.Type != lexer.ASSIGN {
 		p.errors = append(p.errors, "Expected '=' after type name")
 		return nil
 	}
 
 	p.nextToken() // Skip '='
-
 	typeValue := p.parseTypeAnnotation()
-	if typeValue == nil {
-		return nil
-	}
 
 	return &TypeDeclaration{
-		Name: name,
+		Name:      name,
 		TypeValue: typeValue,
 	}
 }
@@ -546,34 +571,32 @@ func (p *Parser) parseVariableDeclaration() Node {
 	var typeAnnotation *TypeAnnotation
 
 	// We only support variable declarations starting with the variable name
-	if p.curToken.Type == lexer.IDENTIFIER {
+	if p.curToken.Type == lexer.IDENT {
 		// Get the variable name
-		name = p.curToken.Value
+		name = p.curToken.Literal
 		p.nextToken()
 
-		if p.curToken.Type != lexer.COLON {
-			p.errors = append(p.errors, "Expected ':' after variable name in declaration")
-			return nil
+		// Check for type annotation
+		if p.curToken.Type == lexer.COLON {
+			p.nextToken() // Skip ':'
+			typeAnnotation = p.parseTypeAnnotation()
 		}
-
-		p.nextToken() // Skip ':'
-		typeAnnotation = p.parseTypeAnnotation()
 	} else {
-		p.errors = append(p.errors, "Expected variable name at the start of variable declaration")
+		p.errors = append(p.errors, fmt.Sprintf("Expected variable name, got %s", p.curToken.Type))
 		return nil
 	}
 
 	var value Node
 	// Check for initialization
-	if p.curToken.Type == lexer.OPERATOR && p.curToken.Value == "=" {
+	if p.curToken.Type == lexer.ASSIGN {
 		p.nextToken() // Skip '='
-		value = p.parseExpression()
+		value = p.parseExpression(LOWEST)
 	}
 
 	return &VariableDecl{
-		Name: name,
+		Name:           name,
 		TypeAnnotation: typeAnnotation,
-		Value: value,
+		Value:          value,
 	}
 }
 
@@ -581,45 +604,33 @@ func (p *Parser) parseIfStatement() Node {
 	// Skip 'if' keyword
 	p.nextToken()
 
-	condition := p.parseExpression()
+	condition := p.parseExpression(LOWEST)
 
-	// Look for the block start - no need for brackets
-	for p.curToken.Type == lexer.NEWLINE {
-		p.nextToken()
-	}
-
-	consequence := p.parseBlockStatement("end")
+	// Look for the block start
+	consequence := p.parseBlockStatement()
 
 	// Check for elsif or else
 	var elseIfBlocks []ElseIfBlock
 	var alternative *BlockStmt
 
-	for p.peekToken.Type == lexer.KEYWORD && (p.peekToken.Value == "elsif" || p.peekToken.Value == "else") {
+	for p.peekToken.Type == lexer.ELSIF || p.peekToken.Type == lexer.ELSE {
 		p.nextToken() // Move to elsif/else
 
-		if p.curToken.Value == "elsif" {
+		if p.curToken.Type == lexer.ELSIF {
 			p.nextToken() // Move past elsif
-			elsifCondition := p.parseExpression()
+			elsifCondition := p.parseExpression(LOWEST)
 
 			// Look for block start
-			for p.curToken.Type == lexer.NEWLINE {
-				p.nextToken()
-			}
-
-			elsifBlock := p.parseBlockStatement("end")
+			elsifBlock := p.parseBlockStatement()
 			elseIfBlocks = append(elseIfBlocks, ElseIfBlock{
 				Condition:   elsifCondition,
 				Consequence: elsifBlock,
 			})
-		} else if p.curToken.Value == "else" {
+		} else if p.curToken.Type == lexer.ELSE {
 			p.nextToken() // Move past else
 
 			// Look for block start
-			for p.curToken.Type == lexer.NEWLINE {
-				p.nextToken()
-			}
-
-			alternative = p.parseBlockStatement("end")
+			alternative = p.parseBlockStatement()
 			break // Must be the last block
 		}
 	}
@@ -636,14 +647,10 @@ func (p *Parser) parseWhileStatement() Node {
 	// Skip 'while' keyword
 	p.nextToken()
 
-	condition := p.parseExpression()
+	condition := p.parseExpression(LOWEST)
 
-	// Look for the block start - no need for brackets
-	for p.curToken.Type == lexer.NEWLINE {
-		p.nextToken()
-	}
-
-	body := p.parseBlockStatement("end")
+	// Look for the block start
+	body := p.parseBlockStatement()
 
 	return &WhileStmt{
 		Condition: condition,
@@ -656,20 +663,20 @@ func (p *Parser) parseReturnStatement() Node {
 	p.nextToken()
 
 	// Check if return has no value
-	if p.curToken.Type == lexer.NEWLINE {
+	if p.curToken.Type == lexer.SEMICOLON {
 		return &ReturnStmt{Value: nil}
 	}
 
-	value := p.parseExpression()
+	value := p.parseExpression(LOWEST)
 	return &ReturnStmt{Value: value}
 }
 
 func (p *Parser) parsePrintStatement() Node {
-	isPuts := p.curToken.Value == "puts"
+	isPuts := p.curToken.Literal == "puts"
 	// Skip 'puts' or 'print' keyword
 	p.nextToken()
 
-	value := p.parseExpression()
+	value := p.parseExpression(LOWEST)
 
 	// Create different print nodes based on the type
 	if isPuts {
@@ -680,152 +687,171 @@ func (p *Parser) parsePrintStatement() Node {
 }
 
 func (p *Parser) parseAssignment() Node {
-	name := p.curToken.Value
+	name := p.curToken.Literal
 	p.nextToken() // Move to '='
 	p.nextToken() // Move past '='
 
-	value := p.parseExpression()
+	value := p.parseExpression(LOWEST)
 	return &Assignment{Name: name, Value: value}
 }
 
 func (p *Parser) parseExpressionStatement() Node {
-	return p.parseExpression()
+	return p.parseExpression(0)
 }
 
-func (p *Parser) parseExpression() Node {
-	return p.parseBinaryExpression(0)
-}
+func (p *Parser) parseExpression(precedence int) Node {
+	// Prefix parsing functions
+	var left Node
 
-// Simple operator precedence table
-func precedence(op string) int {
-	switch op {
-	case "||":
-		return 1
-	case "&&":
-		return 2
-	case "==", "!=", "<", ">", "<=", ">=":
-		return 3
-	case "+", "-":
-		return 4
-	case "*", "/":
-		return 5
-	default:
-		return 0
-	}
-}
-
-func (p *Parser) parseBinaryExpression(prec int) Node {
-	left := p.parseUnaryExpression()
-
-	for p.curToken.Type == lexer.OPERATOR && precedence(p.curToken.Value) > prec {
-		operator := p.curToken.Value
-		opPrec := precedence(operator)
+	switch p.curToken.Type {
+	case lexer.IDENT:
+		left = &Identifier{Name: p.curToken.Literal}
+	case lexer.INT:
+		value, err := strconv.ParseInt(p.curToken.Literal, 0, 64)
+		if err != nil {
+			p.errors = append(p.errors, fmt.Sprintf("Could not parse %s as integer", p.curToken.Literal))
+			return nil
+		}
+		left = &NumberLiteral{Value: float64(value), IsInt: true}
+	case lexer.FLOAT:
+		value, err := strconv.ParseFloat(p.curToken.Literal, 64)
+		if err != nil {
+			p.errors = append(p.errors, fmt.Sprintf("Could not parse %s as float", p.curToken.Literal))
+			return nil
+		}
+		left = &NumberLiteral{Value: value, IsInt: false}
+	case lexer.STRING:
+		left = &StringLiteral{Value: p.curToken.Literal}
+	case lexer.TRUE:
+		left = &BooleanLiteral{Value: true}
+	case lexer.FALSE:
+		left = &BooleanLiteral{Value: false}
+	case lexer.NIL:
+		left = &NilLiteral{}
+	case lexer.LPAREN:
 		p.nextToken()
-		right := p.parseBinaryExpression(opPrec)
-		left = &BinaryExpr{
-			Left:     left,
+		left = p.parseExpression(LOWEST)
+		if p.curToken.Type != lexer.RPAREN {
+			p.errors = append(p.errors, fmt.Sprintf("Expected ), got %s", p.curToken.Type))
+			return nil
+		}
+	case lexer.LBRACKET:
+		left = p.parseArrayLiteral()
+	case lexer.PLUS, lexer.MINUS, lexer.BANG:
+		operator := p.curToken.Literal
+		p.nextToken()
+		operand := p.parseExpression(PREFIX)
+		left = &UnaryExpr{
 			Operator: operator,
-			Right:    right,
+			Right:    operand,
+		}
+	default:
+		p.errors = append(p.errors, fmt.Sprintf("No prefix parser for %s", p.curToken.Type))
+		return nil
+	}
+
+	// Infix parsing functions
+	for precedence < p.peekPrecedence() {
+		if !isInfixOperator(p.peekToken.Type) {
+			return left
+		}
+
+		p.nextToken()
+
+		switch p.curToken.Type {
+		case lexer.PLUS, lexer.MINUS, lexer.ASTERISK, lexer.SLASH,
+				lexer.EQ, lexer.NOT_EQ, lexer.LT, lexer.GT, lexer.LT_EQ, lexer.GT_EQ,
+				lexer.AND, lexer.OR:
+			operator := p.curToken.Literal
+			rightPrecedence := p.curPrecedence()
+			p.nextToken()
+			right := p.parseExpression(rightPrecedence)
+			left = &BinaryExpr{
+				Left:     left,
+				Operator: operator,
+				Right:    right,
+			}
+		case lexer.LPAREN:
+			left = p.parseCallExpression(left)
+		case lexer.LBRACKET:
+			left = p.parseIndexExpression(left)
+		case lexer.DOT:
+			left = p.parseDotExpression(left)
+		default:
+			return left
 		}
 	}
 
 	return left
 }
 
-func (p *Parser) parseUnaryExpression() Node {
-	switch {
-	case p.curToken.Type == lexer.INTEGER:
-		val, err := strconv.Atoi(p.curToken.Value)
-		if err != nil {
-			p.errors = append(p.errors, fmt.Sprintf("Could not parse %q as integer: %s", p.curToken.Value, err))
-			return nil
-		}
-		p.nextToken() // Advance past the integer token
-		return &NumberLiteral{Value: float64(val), IsInt: true}
-	case p.curToken.Type == lexer.FLOAT:
-		val, err := strconv.ParseFloat(p.curToken.Value, 64)
-		if err != nil {
-			p.errors = append(p.errors, fmt.Sprintf("Could not parse %q as float: %s", p.curToken.Value, err))
-			return nil
-		}
-		p.nextToken() // Advance past the float token
-		return &NumberLiteral{Value: val, IsInt: false}
-	case p.curToken.Type == lexer.STRING:
-		strValue := p.curToken.Value
-		p.nextToken() // Advance past the string token
-		return &StringLiteral{Value: strValue}
-	case p.curToken.Type == lexer.KEYWORD:
-		switch p.curToken.Value {
-		case "true":
-			p.nextToken() // Advance past the 'true' token
-			return &BooleanLiteral{Value: true}
-		case "false":
-			p.nextToken() // Advance past the 'false' token
-			return &BooleanLiteral{Value: false}
-		case "nil":
-			p.nextToken() // Advance past the 'nil' token
-			return &NilLiteral{}
-		}
-		// Fall through for other keywords
-		fallthrough
-	case p.curToken.Type == lexer.IDENTIFIER:
-		identifier := &Identifier{Name: p.curToken.Value}
-		p.nextToken() // Advance past the identifier token
-
-		if p.curToken.Type == lexer.LPAREN {
-			// Function call
-			p.nextToken() // Move past '('
-
-			var args []Node
-			if p.curToken.Type != lexer.RPAREN {
-				args = p.parseCallArguments()
-			}
-
-			if p.curToken.Type != lexer.RPAREN {
-				p.errors = append(p.errors, fmt.Sprintf("Expected ')', got %s", p.curToken.Type))
-				return nil
-			}
-			p.nextToken() // Move past ')'
-
-			return &CallExpr{
-				Function: identifier,
-				Args:     args,
-			}
-		}
-
-		return identifier
+// Helper function to check if a token type is an infix operator
+func isInfixOperator(tokenType lexer.TokenType) bool {
+	switch tokenType {
+	case lexer.PLUS, lexer.MINUS, lexer.ASTERISK, lexer.SLASH,
+			lexer.EQ, lexer.NOT_EQ, lexer.LT, lexer.GT, lexer.LT_EQ, lexer.GT_EQ,
+			lexer.AND, lexer.OR, lexer.LPAREN, lexer.LBRACKET, lexer.DOT:
+		return true
+	default:
+		return false
 	}
-
-	return nil
 }
 
-func (p *Parser) parseCallArguments() []Node {
-	var args []Node
-
-	args = append(args, p.parseExpression())
-	p.nextToken()
-
-	for p.curToken.Type == lexer.COMMA {
-		p.nextToken() // Skip comma
-		args = append(args, p.parseExpression())
-		p.nextToken()
+// Get precedence for operators
+func (p *Parser) peekPrecedence() int {
+	switch p.peekToken.Type {
+	case lexer.EQ, lexer.NOT_EQ:
+		return EQUALS
+	case lexer.LT, lexer.GT, lexer.LT_EQ, lexer.GT_EQ:
+		return LESSGREATER
+	case lexer.PLUS, lexer.MINUS:
+		return SUM
+	case lexer.ASTERISK, lexer.SLASH:
+		return PRODUCT
+	case lexer.LPAREN:
+		return CALL
+	case lexer.LBRACKET:
+		return INDEX
+	case lexer.DOT:
+		return DOT
+	default:
+		return LOWEST
 	}
-
-	return args
 }
 
-func (p *Parser) parseBlockStatement(endToken string) *BlockStmt {
+func (p *Parser) curPrecedence() int {
+	switch p.curToken.Type {
+	case lexer.EQ, lexer.NOT_EQ:
+		return EQUALS
+	case lexer.LT, lexer.GT, lexer.LT_EQ, lexer.GT_EQ:
+		return LESSGREATER
+	case lexer.PLUS, lexer.MINUS:
+		return SUM
+	case lexer.ASTERISK, lexer.SLASH:
+		return PRODUCT
+	case lexer.LPAREN:
+		return CALL
+	case lexer.LBRACKET:
+		return INDEX
+	case lexer.DOT:
+		return DOT
+	default:
+		return LOWEST
+	}
+}
+
+func (p *Parser) parseBlockStatement() *BlockStmt {
 	block := &BlockStmt{Statements: []Node{}}
 
-	p.nextToken() // Skip newline or opening token
+	p.nextToken() // Skip opening token
 
-	for p.curToken.Type != lexer.KEYWORD || p.curToken.Value != endToken {
+	for p.curToken.Type != lexer.RBRACE {
 		if p.curToken.Type == lexer.EOF {
-			p.errors = append(p.errors, "Unexpected EOF, expected '" + endToken + "'")
+			p.errors = append(p.errors, "Unexpected EOF, expected '}'")
 			return block
 		}
 
-		if p.curToken.Type == lexer.NEWLINE {
+		if p.curToken.Type == lexer.SEMICOLON {
 			p.nextToken()
 			continue
 		}
@@ -840,9 +866,159 @@ func (p *Parser) parseBlockStatement(endToken string) *BlockStmt {
 	return block
 }
 
-// Parse transforms the tokens into an AST
-func Parse(l *lexer.Lexer) (*Program, []string) {
-	p := New(l)
-	program := p.parseProgram()
-	return program, p.Errors()
+// parseFunctionParameters parses function parameters with optional type annotations
+func (p *Parser) parseFunctionParameters() ([]string, []*TypeAnnotation) {
+	var parameters []string
+	var paramTypes []*TypeAnnotation
+
+	p.nextToken() // Skip '('
+
+	// Handle empty parameter list
+	if p.curToken.Type == lexer.RPAREN {
+		p.nextToken() // Skip ')'
+		return parameters, paramTypes
+	}
+
+	// Read first parameter
+	if p.curToken.Type == lexer.IDENT {
+		parameters = append(parameters, p.curToken.Literal)
+
+		// Check for type annotation
+		p.nextToken()
+		if p.curToken.Type == lexer.COLON {
+			p.nextToken() // Skip ':'
+			paramTypes = append(paramTypes, p.parseTypeAnnotation())
+		} else {
+			// No type annotation, add nil
+			paramTypes = append(paramTypes, nil)
+		}
+
+		p.nextToken() // Move to ',' or ')'
+	}
+
+	// Read other parameters
+	for p.curToken.Type == lexer.COMMA {
+		p.nextToken() // Skip ','
+
+		if p.curToken.Type != lexer.IDENT {
+			p.errors = append(p.errors, fmt.Sprintf("Expected parameter name, got %s", p.curToken.Type))
+			break
+		}
+
+		parameters = append(parameters, p.curToken.Literal)
+
+		// Check for type annotation
+		p.nextToken()
+		if p.curToken.Type == lexer.COLON {
+			p.nextToken() // Skip ':'
+			paramTypes = append(paramTypes, p.parseTypeAnnotation())
+		} else {
+			// No type annotation, add nil
+			paramTypes = append(paramTypes, nil)
+		}
+
+		p.nextToken() // Move to ',' or ')'
+	}
+
+	if p.curToken.Type != lexer.RPAREN {
+		p.errors = append(p.errors, fmt.Sprintf("Expected ')' after parameters, got %s", p.curToken.Type))
+	} else {
+		p.nextToken() // Skip ')'
+	}
+
+	return parameters, paramTypes
+}
+
+func (p *Parser) parseArrayLiteral() Node {
+	// Skip '['
+	p.nextToken()
+
+	var elements []Node
+
+	// Handle empty array
+	if p.curToken.Type == lexer.RBRACKET {
+		p.nextToken() // Skip ']'
+		return &ArrayLiteral{Elements: elements}
+	}
+
+	// Parse first element
+	element := p.parseExpression(LOWEST)
+	elements = append(elements, element)
+
+	// Parse remaining elements
+	for p.curToken.Type == lexer.COMMA {
+		p.nextToken() // Skip ','
+		element = p.parseExpression(LOWEST)
+		elements = append(elements, element)
+	}
+
+	if p.curToken.Type != lexer.RBRACKET {
+		p.errors = append(p.errors, fmt.Sprintf("Expected ']', got %s", p.curToken.Type))
+		return nil
+	}
+
+	p.nextToken() // Skip ']'
+	return &ArrayLiteral{Elements: elements}
+}
+
+func (p *Parser) parseCallExpression(function Node) Node {
+	// Skip '('
+	p.nextToken()
+
+	var args []Node
+
+	// Handle empty argument list
+	if p.curToken.Type == lexer.RPAREN {
+		p.nextToken() // Skip ')'
+		return &CallExpr{Function: function, Args: args}
+	}
+
+	// Parse first argument
+	arg := p.parseExpression(LOWEST)
+	args = append(args, arg)
+
+	// Parse remaining arguments
+	for p.curToken.Type == lexer.COMMA {
+		p.nextToken() // Skip ','
+		arg = p.parseExpression(LOWEST)
+		args = append(args, arg)
+	}
+
+	if p.curToken.Type != lexer.RPAREN {
+		p.errors = append(p.errors, fmt.Sprintf("Expected ')', got %s", p.curToken.Type))
+		return nil
+	}
+
+	p.nextToken() // Skip ')'
+	return &CallExpr{Function: function, Args: args}
+}
+
+func (p *Parser) parseIndexExpression(array Node) Node {
+	// Skip '['
+	p.nextToken()
+
+	index := p.parseExpression(LOWEST)
+
+	if p.curToken.Type != lexer.RBRACKET {
+		p.errors = append(p.errors, fmt.Sprintf("Expected ']', got %s", p.curToken.Type))
+		return nil
+	}
+
+	p.nextToken() // Skip ']'
+	return &IndexExpr{Array: array, Index: index}
+}
+
+func (p *Parser) parseDotExpression(object Node) Node {
+	// Skip '.'
+	p.nextToken()
+
+	if p.curToken.Type != lexer.IDENT {
+		p.errors = append(p.errors, fmt.Sprintf("Expected identifier after '.', got %s", p.curToken.Type))
+		return nil
+	}
+
+	property := p.curToken.Literal
+	p.nextToken() // Skip property name
+
+	return &DotExpr{Object: object, Property: property}
 }

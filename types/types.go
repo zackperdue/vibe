@@ -1,205 +1,204 @@
 package types
 
-import "fmt"
+import (
+	"fmt"
 
-// Type represents a type in the Crystal language
-type Type interface {
-	String() string
-	Equal(Type) bool
-}
-
-// BasicType represents primitive types
-type BasicType string
-
-const (
-	IntType    BasicType = "int"
-	FloatType  BasicType = "float"
-	StringType BasicType = "string"
-	BoolType   BasicType = "bool"
-	NilType    BasicType = "nil"
-	AnyType    BasicType = "any"
+	"github.com/example/vibe/parser"
 )
 
-func (b BasicType) String() string {
-	return string(b)
+// Type represents a type in the language
+type Type interface {
+	String() string
 }
 
-func (b BasicType) Equal(other Type) bool {
-	if otherBasic, ok := other.(BasicType); ok {
-		return b == otherBasic
-	}
-	return false
+// IntType represents the integer type
+var IntType = SimpleType{"int"}
+
+// FloatType represents the floating point type
+var FloatType = SimpleType{"float"}
+
+// StringType represents the string type
+var StringType = SimpleType{"string"}
+
+// BoolType represents the boolean type
+var BoolType = SimpleType{"bool"}
+
+// NilType represents the nil type
+var NilType = SimpleType{"nil"}
+
+// AnyType represents any type
+var AnyType = SimpleType{"any"}
+
+// SimpleType represents a basic type
+type SimpleType struct {
+	Name string
 }
 
-// ArrayType represents array types
+func (t SimpleType) String() string {
+	return t.Name
+}
+
+// ArrayType represents an array type
 type ArrayType struct {
 	ElementType Type
 }
 
-func (a ArrayType) String() string {
-	return fmt.Sprintf("Array<%s>", a.ElementType.String())
+func (t ArrayType) String() string {
+	return fmt.Sprintf("Array<%s>", t.ElementType.String())
 }
 
-func (a ArrayType) Equal(other Type) bool {
-	if otherArray, ok := other.(ArrayType); ok {
-		return a.ElementType.Equal(otherArray.ElementType)
-	}
-	return false
-}
-
-// FunctionType represents function types
+// FunctionType represents a function type
 type FunctionType struct {
 	ParameterTypes []Type
 	ReturnType     Type
 }
 
-func (f FunctionType) String() string {
-	params := ""
-	for i, paramType := range f.ParameterTypes {
-		if i > 0 {
-			params += ", "
-		}
-		params += paramType.String()
-	}
-	return fmt.Sprintf("(%s) => %s", params, f.ReturnType.String())
-}
-
-func (f FunctionType) Equal(other Type) bool {
-	if otherFunc, ok := other.(FunctionType); ok {
-		if len(f.ParameterTypes) != len(otherFunc.ParameterTypes) {
-			return false
-		}
-		for i, paramType := range f.ParameterTypes {
-			if !paramType.Equal(otherFunc.ParameterTypes[i]) {
-				return false
-			}
-		}
-		return f.ReturnType.Equal(otherFunc.ReturnType)
-	}
-	return false
-}
-
-// ObjectType represents object types with properties
-type ObjectType struct {
-	Properties map[string]Type
-}
-
-func (o ObjectType) String() string {
-	result := "{"
-	i := 0
-	for name, propType := range o.Properties {
+func (t FunctionType) String() string {
+	result := "def("
+	for i, param := range t.ParameterTypes {
 		if i > 0 {
 			result += ", "
 		}
-		result += fmt.Sprintf("%s: %s", name, propType.String())
-		i++
+		result += param.String()
 	}
-	result += "}"
+	result += ") -> " + t.ReturnType.String()
 	return result
 }
 
-func (o ObjectType) Equal(other Type) bool {
-	if otherObj, ok := other.(ObjectType); ok {
-		if len(o.Properties) != len(otherObj.Properties) {
-			return false
-		}
-		for name, propType := range o.Properties {
-			otherPropType, ok := otherObj.Properties[name]
-			if !ok || !propType.Equal(otherPropType) {
-				return false
-			}
-		}
-		return true
-	}
-	return false
-}
-
-// UnionType represents union types (A | B)
+// UnionType represents a union of types
 type UnionType struct {
 	Types []Type
 }
 
-func (u UnionType) String() string {
-	result := ""
-	for i, t := range u.Types {
+func (t UnionType) String() string {
+	result := "union["
+	for i, typ := range t.Types {
 		if i > 0 {
-			result += " | "
+			result += ", "
 		}
-		result += t.String()
+		result += typ.String()
 	}
+	result += "]"
 	return result
 }
 
-func (u UnionType) Equal(other Type) bool {
-	if otherUnion, ok := other.(UnionType); ok {
-		if len(u.Types) != len(otherUnion.Types) {
-			return false
-		}
-		// This is a simplistic implementation; a more accurate one would check
-		// all permutations since union types can be in any order
-		for i, t := range u.Types {
-			if !t.Equal(otherUnion.Types[i]) {
+// IsAssignable determines if a value of type src can be assigned to a variable of type dst
+func IsAssignable(src, dst Type) bool {
+	// Any type can be assigned to any
+	if _, ok := dst.(SimpleType); ok && dst.String() == "any" {
+		return true
+	}
+
+	// Same type is always assignable
+	if src.String() == dst.String() {
+		return true
+	}
+
+	// Nil can be assigned to any non-primitive type
+	if _, ok := src.(SimpleType); ok && src.String() == "nil" {
+		if _, ok := dst.(SimpleType); ok {
+			// Only allow nil to be assigned to specific primitive types
+			switch dst.String() {
+			case "int", "float", "string", "bool":
 				return false
 			}
 		}
 		return true
 	}
-	return false
-}
 
-// TypeChecker handles type checking operations
-type TypeChecker struct {
-	// Add fields as needed
-}
-
-// NewTypeChecker creates a new TypeChecker
-func NewTypeChecker() *TypeChecker {
-	return &TypeChecker{}
-}
-
-// IsAssignable checks if a value of fromType can be assigned to a variable of toType
-func IsAssignable(fromType Type, toType Type) bool {
-	// Any type can be assigned to Any
-	if toType == AnyType {
-		return true
+	// For union types, the source must be assignable to at least one of the union types
+	if unionType, ok := dst.(UnionType); ok {
+		for _, t := range unionType.Types {
+			if IsAssignable(src, t) {
+				return true
+			}
+		}
+		return false
 	}
 
-	// Exact match
-	if fromType.Equal(toType) {
-		return true
-	}
-
-	// Number type conversions
-	if fromType == IntType && toType == FloatType {
-		return true
-	}
-
-	// Nil can be assigned to any object/array/function type
-	if fromType == NilType {
-		switch toType.(type) {
-		case ArrayType, ObjectType, FunctionType:
+	// Number type coercion: int -> float
+	if srcSimple, ok := src.(SimpleType); ok && srcSimple.Name == "int" {
+		if dstSimple, ok := dst.(SimpleType); ok && dstSimple.Name == "float" {
 			return true
 		}
 	}
 
-	// Union type compatibilities
-	if unionType, ok := toType.(UnionType); ok {
-		for _, t := range unionType.Types {
-			if IsAssignable(fromType, t) {
-				return true
-			}
+	// Array type compatibility
+	if srcArray, ok := src.(ArrayType); ok {
+		if dstArray, ok := dst.(ArrayType); ok {
+			// Check element type compatibility
+			return IsAssignable(srcArray.ElementType, dstArray.ElementType)
 		}
 	}
 
-	if unionType, ok := fromType.(UnionType); ok {
-		// All types in the union must be assignable to the target type
-		for _, t := range unionType.Types {
-			if !IsAssignable(t, toType) {
+	// Function type compatibility
+	if srcFunc, ok := src.(FunctionType); ok {
+		if dstFunc, ok := dst.(FunctionType); ok {
+			// Return type must be assignable
+			if !IsAssignable(srcFunc.ReturnType, dstFunc.ReturnType) {
 				return false
 			}
+
+			// Parameter count must match
+			if len(srcFunc.ParameterTypes) != len(dstFunc.ParameterTypes) {
+				return false
+			}
+
+			// Parameters must be assignable in reverse (contravariant)
+			for i := range srcFunc.ParameterTypes {
+				if !IsAssignable(dstFunc.ParameterTypes[i], srcFunc.ParameterTypes[i]) {
+					return false
+				}
+			}
+
+			return true
 		}
-		return true
 	}
 
 	return false
+}
+
+// TypeChecker provides type checking functionality
+type TypeChecker struct {
+	types map[string]Type
+}
+
+// NewTypeChecker creates a new type checker
+func NewTypeChecker() *TypeChecker {
+	return &TypeChecker{
+		types: make(map[string]Type),
+	}
+}
+
+// CheckType verifies that a node's type matches the expected type
+func (tc *TypeChecker) CheckType(node parser.Node, expected Type) (Type, error) {
+	actual, err := tc.InferType(node)
+	if err != nil {
+		return nil, err
+	}
+
+	if !IsAssignable(actual, expected) {
+		return nil, fmt.Errorf("type error: cannot use %s as %s", actual.String(), expected.String())
+	}
+
+	return actual, nil
+}
+
+// InferType determines the type of a node
+func (tc *TypeChecker) InferType(node parser.Node) (Type, error) {
+	switch n := node.(type) {
+	case *parser.NumberLiteral:
+		if n.IsInt {
+			return IntType, nil
+		}
+		return FloatType, nil
+	case *parser.StringLiteral:
+		return StringType, nil
+	case *parser.BooleanLiteral:
+		return BoolType, nil
+	case *parser.NilLiteral:
+		return NilType, nil
+	default:
+		return AnyType, nil
+	}
 }

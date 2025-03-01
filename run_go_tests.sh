@@ -1,32 +1,24 @@
 #!/bin/bash
 
-# Set up text colors for output
+# Define colors for output
 GREEN='\033[0;32m'
 RED='\033[0;31m'
-YELLOW='\033[1;33m'
+ORANGE='\033[0;33m'
 NC='\033[0m' # No Color
 
-echo -e "${YELLOW}Running Go Tests for Crystal Implementation${NC}"
-echo "=================================="
+echo "Running tests for Vibe programming language..."
+echo ""
 
-# Run tests for each package
-run_package_tests() {
-    local package=$1
-    echo -e "${YELLOW}Testing package: $package${NC}"
-    go test ./$package -v
+# Run all tests with verbose output
+go test -v ./... | grep -v "=== RUN" | grep -v "--- PASS" | grep -v "PASS" | grep -v "FAIL" | grep -v "ok" | grep -v "?"
 
-    if [ $? -eq 0 ]; then
-        echo -e "${GREEN}✓ Tests passed for $package${NC}"
-    else
-        echo -e "${RED}✗ Tests failed for $package${NC}"
-    fi
+# Get exit status
+test_status=${PIPESTATUS[0]}
 
-    echo "=================================="
-}
+if [ $test_status -eq 0 ]; then
+    echo -e "${GREEN}All tests passed!${NC}"
+else
+    echo -e "${RED}Tests failed with exit status: $test_status${NC}"
+fi
 
-# Run tests for each package
-run_package_tests "lexer"
-run_package_tests "parser"
-run_package_tests "interpreter"
-
-echo -e "${YELLOW}All Go tests completed${NC}"
+exit $test_status
