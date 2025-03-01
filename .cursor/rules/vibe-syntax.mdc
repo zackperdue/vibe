@@ -93,10 +93,10 @@ end
 
 ### While Loops
 
-While loops also use the `end` keyword to close blocks:
+While loops use the `do` and `end` keywords to denote their body:
 
 ```ruby
-while x < 10
+while x < 10 do
   x = x + 1
 end
 ```
@@ -172,6 +172,33 @@ Access array elements with square brackets:
 arr = [1, 2, 3, 4]
 arr[2] = 10  # Sets the third element to 10
 ```
+
+## Structs
+
+struct Person
+  name: string
+  age: int
+
+  def greet(): string do
+    return "Hello, my name is " + self.name
+  end
+
+  def have_birthday(): void do
+    self.age = self.age + 1
+  end
+end
+
+# Create an instance
+p = Person.new("Alice", 30)
+
+# Access fields
+puts p.name  # Outputs: Alice
+puts p.age   # Outputs: 30
+
+# Call methods
+puts p.greet()  # Outputs: Hello, my name is Alice
+p.have_birthday()
+puts p.age      # Outputs: 31
 
 ## Important Syntax Rules
 

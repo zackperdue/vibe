@@ -33,6 +33,7 @@ const (
 	BANG     = "!"
 	ASTERISK = "*"
 	SLASH    = "/"
+	MODULO   = "%"
 
 	LT = "<"
 	GT = ">"
@@ -69,6 +70,8 @@ const (
 	ELSIF    = "ELSIF"
 	RETURN   = "RETURN"
 	WHILE    = "WHILE"
+	FOR      = "FOR"
+	IN       = "IN"
 	NIL      = "NIL"
 	PRINT    = "PRINT"
 	END      = "END"
@@ -87,8 +90,11 @@ var keywords = map[string]TokenType{
 	"elsif":  ELSIF,
 	"return": RETURN,
 	"while":  WHILE,
+	"for":    FOR,
+	"in":     IN,
 	"nil":    NIL,
 	"print":  PRINT,
+	"puts":   PRINT,
 	"end":    END,
 	"do":     DO,
 }
@@ -181,6 +187,14 @@ func (l *Lexer) NextToken() Token {
 		} else {
 			tok = newToken(SLASH, l.ch)
 		}
+	case '#':
+		// Skip the rest of the line (comment)
+		for l.ch != '\n' && l.ch != 0 {
+			l.readChar()
+		}
+		return l.NextToken() // Get the next valid token
+	case '%':
+		tok = newToken(MODULO, l.ch)
 	case '<':
 		if l.peekChar() == '=' {
 			ch := l.ch
@@ -243,20 +257,25 @@ func (l *Lexer) NextToken() Token {
 		if isLetter(l.ch) {
 			tok.Literal = l.readIdentifier()
 			tok.Type = lookupIdent(tok.Literal)
+			fmt.Printf("DEBUG: NextToken - identifier: %s, token type: %s\n", tok.Literal, tok.Type)
 			tok.Line = line
 			tok.Column = column
 			return tok
 		} else if isDigit(l.ch) {
-			// This handles both integer and floating point numbers
-			return l.readNumber()
+			numToken := l.readNumber()
+			numToken.Line = line
+			numToken.Column = column
+			return numToken
 		} else {
 			tok = newToken(ILLEGAL, l.ch)
 		}
 	}
 
-	l.readChar()
 	tok.Line = line
 	tok.Column = column
+
+	l.readChar()
+	fmt.Printf("DEBUG: NextToken - token type: %s, literal: %s\n", tok.Type, tok.Literal)
 	return tok
 }
 
@@ -337,9 +356,12 @@ func isDigit(ch byte) bool {
 
 // lookupIdent checks if an identifier is a keyword
 func lookupIdent(ident string) TokenType {
+	fmt.Printf("DEBUG: lookupIdent checking: %s\n", ident)
 	if tok, ok := keywords[ident]; ok {
+		fmt.Printf("DEBUG: lookupIdent found keyword: %s -> %s\n", ident, tok)
 		return tok
 	}
+	fmt.Printf("DEBUG: lookupIdent not a keyword: %s -> IDENT\n", ident)
 	return IDENT
 }
 

@@ -1,0 +1,4 @@
+# Simple test with just a for loop
+for i in [1, 2, 3, 4, 5] do
+  puts i
+end

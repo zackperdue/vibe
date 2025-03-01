@@ -2,6 +2,7 @@ package interpreter
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 
 	"github.com/example/vibe/parser"
@@ -358,8 +359,12 @@ func (i *Interpreter) eval(node parser.Node, env *Environment) Value {
 		return i.evalIfStatement(node, env)
 	case *parser.WhileStmt:
 		return i.evalWhileStatement(node, env)
+	case *parser.ForStmt:
+		return i.evalForStatement(node, env)
 	case *parser.BinaryExpr:
 		return i.evalBinaryExpression(node, env)
+	case *parser.ArrayLiteral:
+		return i.evalArrayLiteral(node, env)
 	case *parser.TypeAnnotation:
 		// Type annotations don't evaluate to a value on their own
 		return &NilValue{}
@@ -698,6 +703,65 @@ func (i *Interpreter) evalWhileStatement(node *parser.WhileStmt, env *Environmen
 	return &NilValue{}
 }
 
+func (i *Interpreter) evalForStatement(node *parser.ForStmt, env *Environment) Value {
+	// Evaluate the iterable expression
+	iterable := i.eval(node.Iterable, env)
+
+	// Create a new environment for the loop
+	loopEnv := NewEnclosedEnvironment(env)
+
+	// Handle different types of iterables
+	switch iterable := iterable.(type) {
+	case *ArrayValue:
+		// Iterate over array elements
+		for _, element := range iterable.Elements {
+			// Bind the current element to the iterator variable
+			loopEnv.Set(node.Iterator, element)
+
+			// Execute the loop body
+			result := i.eval(node.Body, loopEnv)
+
+			// Handle return statements inside the loop
+			if returnValue, ok := result.(*ReturnValue); ok {
+				return returnValue
+			}
+		}
+	case *StringValue:
+		// Iterate over characters in the string
+		for _, char := range iterable.Value {
+			// Convert each character to a string value
+			charValue := &StringValue{Value: string(char)}
+
+			// Bind the current character to the iterator variable
+			loopEnv.Set(node.Iterator, charValue)
+
+			// Execute the loop body
+			result := i.eval(node.Body, loopEnv)
+
+			// Handle return statements inside the loop
+			if returnValue, ok := result.(*ReturnValue); ok {
+				return returnValue
+			}
+		}
+	default:
+		// Unsupported iterable type
+		return &StringValue{Value: fmt.Sprintf("Type error: cannot iterate over %s", iterable.Type())}
+	}
+
+	return &NilValue{}
+}
+
+func (i *Interpreter) evalArrayLiteral(node *parser.ArrayLiteral, env *Environment) Value {
+	elements := make([]Value, 0, len(node.Elements))
+
+	for _, element := range node.Elements {
+		evaluated := i.eval(element, env)
+		elements = append(elements, evaluated)
+	}
+
+	return &ArrayValue{Elements: elements}
+}
+
 func (i *Interpreter) evalBinaryExpression(node *parser.BinaryExpr, env *Environment) Value {
 	left := i.eval(node.Left, env)
 	right := i.eval(node.Right, env)
@@ -743,6 +807,11 @@ func evalIntegerBinaryExpression(operator string, left, right Value) Value {
 			return &StringValue{Value: "Error: division by zero"}
 		}
 		return &IntegerValue{Value: leftVal / rightVal}
+	case "%":
+		if rightVal == 0 {
+			return &StringValue{Value: "Error: modulo by zero"}
+		}
+		return &IntegerValue{Value: leftVal % rightVal}
 	case "<":
 		return &BooleanValue{Value: leftVal < rightVal}
 	case ">":
@@ -789,6 +858,11 @@ func evalNumberBinaryExpression(operator string, left, right Value) Value {
 			return &StringValue{Value: "Error: division by zero"}
 		}
 		return &FloatValue{Value: leftVal / rightVal}
+	case "%":
+		if rightVal == 0 {
+			return &StringValue{Value: "Error: modulo by zero"}
+		}
+		return &FloatValue{Value: math.Mod(leftVal, rightVal)}
 	case "<":
 		return &BooleanValue{Value: leftVal < rightVal}
 	case ">":

@@ -1,0 +1,10 @@
+# Basic for loop test
+# This test iterates over a simple array of integers
+
+numbers = [1, 2, 3, 4, 5]
+
+# Basic for loop
+puts "Basic for loop:"
+for num in numbers do
+  puts num
+end

@@ -1,0 +1,16 @@
+# Simple test file
+
+# Define a variable
+x = 10
+
+# Print the variable
+puts x
+
+# Define an array
+numbers = [1, 2, 3, 4, 5]
+
+# Print the array
+puts numbers
+
+# Print a specific element
+puts numbers[2]

@@ -21,6 +21,7 @@ const (
 	ReturnStmtNode   NodeType = "ReturnStmt"
 	IfStmtNode       NodeType = "IfStmt"
 	WhileStmtNode    NodeType = "WhileStmt"
+	ForStmtNode      NodeType = "ForStmt"
 	BlockStmtNode    NodeType = "BlockStmt"
 	AssignmentNode   NodeType = "Assignment"
 	VariableUseNode  NodeType = "VariableUse"
@@ -274,6 +275,9 @@ type Assignment struct {
 
 func (a *Assignment) Type() NodeType { return AssignmentNode }
 func (a *Assignment) String() string {
+	if a.Value == nil {
+		return fmt.Sprintf("Assignment(%s = nil)", a.Name)
+	}
 	return fmt.Sprintf("Assignment(%s = %s)", a.Name, a.Value.String())
 }
 
@@ -297,7 +301,12 @@ type PrintStmt struct {
 }
 
 func (p *PrintStmt) Type() NodeType { return PrintStmtNode }
-func (p *PrintStmt) String() string { return fmt.Sprintf("PrintStmt(%s)", p.Value.String()) }
+func (p *PrintStmt) String() string {
+	if p.Value == nil {
+		return "PrintStmt(nil)"
+	}
+	return fmt.Sprintf("PrintStmt(%s)", p.Value.String())
+}
 
 // TypeDeclaration represents a type declaration (type aliases and interfaces)
 type TypeDeclaration struct {
@@ -380,6 +389,28 @@ func (d *DotExpr) String() string {
 	return fmt.Sprintf("%s.%s", d.Object.String(), d.Property)
 }
 
+// ForStmt represents a for loop with iterator
+type ForStmt struct {
+	Iterator  string     // The variable that will hold each element
+	Iterable  Node       // The expression to iterate over
+	Body      *BlockStmt
+}
+
+func (f *ForStmt) Type() NodeType { return ForStmtNode }
+func (f *ForStmt) String() string {
+	iterableStr := "<nil>"
+	if f.Iterable != nil {
+		iterableStr = f.Iterable.String()
+	}
+
+	bodyStr := "<nil>"
+	if f.Body != nil {
+		bodyStr = f.Body.String()
+	}
+
+	return fmt.Sprintf("ForStmt(%s in %s, %s)", f.Iterator, iterableStr, bodyStr)
+}
+
 // Parser parses tokens into an AST
 type Parser struct {
 	l         *lexer.Lexer
@@ -414,7 +445,11 @@ func Parse(l *lexer.Lexer) (*Program, []string) {
 	// Debug print
 	fmt.Printf("DEBUG: Parsed %d statements\n", len(program.Statements))
 	for i, stmt := range program.Statements {
-		fmt.Printf("DEBUG: Statement %d: %T - %s\n", i, stmt, stmt.String())
+		if stmt != nil {
+			fmt.Printf("DEBUG: Statement %d: %T - %s\n", i, stmt, stmt.String())
+		} else {
+			fmt.Printf("DEBUG: Statement %d: nil\n", i)
+		}
 	}
 
 	return program, p.errors
@@ -423,39 +458,74 @@ func Parse(l *lexer.Lexer) (*Program, []string) {
 func (p *Parser) parseProgram() *Program {
 	program := &Program{Statements: []Node{}}
 
+	fmt.Println("DEBUG: Starting to parse program")
 	for p.curToken.Type != lexer.EOF {
-		stmt := p.parseStatement()
-		if stmt != nil {
-			program.Statements = append(program.Statements, stmt)
+		fmt.Printf("DEBUG: parseProgram - current token: %s, literal: %s\n", p.curToken.Type, p.curToken.Literal)
+
+		// Check specifically for FOR statements
+		if p.curToken.Type == lexer.FOR {
+			fmt.Println("DEBUG: parseProgram - Detected FOR token, directly handling it")
+			fmt.Printf("DEBUG: FOR token details - Type: %s, Literal: %s\n", p.curToken.Type, p.curToken.Literal)
+
+			forStmt := p.parseForStatement()
+			if forStmt != nil {
+				program.Statements = append(program.Statements, forStmt)
+				fmt.Printf("DEBUG: parseProgram - Successfully added FOR statement: %s\n", forStmt.String())
+			} else {
+				fmt.Println("DEBUG: parseProgram - FOR statement parsing failed")
+			}
+		} else {
+			// Parse regular statement
+			stmt := p.parseStatement()
+			if stmt != nil {
+				fmt.Printf("DEBUG: parseProgram - added statement: %T - %s\n", stmt, stmt.String())
+				program.Statements = append(program.Statements, stmt)
+			} else {
+				fmt.Printf("DEBUG: parseProgram - statement was nil\n")
+			}
 		}
-		p.nextToken()
+
+		// Only advance if we haven't reached EOF
+		if p.curToken.Type != lexer.EOF {
+			p.nextToken()
+		}
 	}
 
 	return program
 }
 
 func (p *Parser) parseStatement() Node {
+	fmt.Printf("DEBUG: parseStatement - current token: %s, literal: %s\n", p.curToken.Type, p.curToken.Literal)
+
 	switch p.curToken.Type {
-	case lexer.FUNCTION:
-		return p.parseFunctionDefinition()
-	case lexer.IF:
-		return p.parseIfStatement()
-	case lexer.WHILE:
-		return p.parseWhileStatement()
-	case lexer.RETURN:
-		return p.parseReturnStatement()
-	case lexer.PRINT:
-		return p.parsePrintStatement()
-	case lexer.LET, lexer.VAR:
-		return p.parseVariableDeclaration()
 	case lexer.IDENT:
-		// Check if it's an assignment
+		// Check if this is an assignment
 		if p.peekToken.Type == lexer.ASSIGN {
 			return p.parseAssignment()
 		}
 		return p.parseExpressionStatement()
-	default:
+	case lexer.RETURN:
+		return p.parseReturnStatement()
+	case lexer.PRINT:
+		return p.parsePrintStatement()
+	case lexer.IF:
+		return p.parseIfStatement()
+	case lexer.FUNCTION:
+		return p.parseFunctionDefinition()
+	case lexer.FOR:
+		fmt.Println("DEBUG: Detected FOR token in parseStatement, calling parseForStatement")
+		return p.parseForStatement()
+	case lexer.WHILE:
+		return p.parseWhileStatement()
+	case lexer.IN, lexer.DO, lexer.END:
+		// These tokens are part of control structures and should be handled by their respective parsers
+		fmt.Printf("DEBUG: Skipping token %s as it should be handled by its control structure parser\n", p.curToken.Type)
+		return nil
+	case lexer.INT, lexer.FLOAT, lexer.STRING, lexer.TRUE, lexer.FALSE, lexer.NIL,
+		lexer.LPAREN, lexer.LBRACKET, lexer.LBRACE, lexer.MINUS, lexer.BANG:
 		return p.parseExpressionStatement()
+	default:
+		return nil
 	}
 }
 
@@ -819,18 +889,39 @@ func (p *Parser) parseReturnStatement() Node {
 }
 
 func (p *Parser) parsePrintStatement() Node {
-	isPuts := p.curToken.Literal == "puts"
-	// Skip 'puts' or 'print' keyword
+	stmt := &PrintStmt{}
+
+	// Skip 'print' or 'puts' keyword
 	p.nextToken()
 
-	value := p.parseExpression(LOWEST)
+	// Check if it's the print(expr) syntax with parentheses
+	if p.curToken.Type == lexer.LPAREN {
+		// Skip '('
+		p.nextToken()
 
-	// Create different print nodes based on the type
-	if isPuts {
-		return &PrintStmt{Value: value}
+		// Parse the expression to print
+		stmt.Value = p.parseExpression(LOWEST)
+
+		// Skip to check for the closing paren
+		if p.peekToken.Type == lexer.RPAREN {
+			p.nextToken()
+		}
+
+		// Ensure we have a closing parenthesis
+		if p.curToken.Type != lexer.RPAREN {
+			p.errors = append(p.errors, fmt.Sprintf("Expected ')' after print value, got %s", p.curToken.Type))
+			return nil
+		}
+
+		// Skip ')'
+		p.nextToken()
 	} else {
-		return &PrintStmt{Value: value}
+		// It's the puts expr syntax without parentheses
+		// Parse the expression to print
+		stmt.Value = p.parseExpression(LOWEST)
 	}
+
+	return stmt
 }
 
 func (p *Parser) parseAssignment() Node {
@@ -906,7 +997,7 @@ func (p *Parser) parseExpression(precedence int) Node {
 		p.nextToken()
 
 		switch p.curToken.Type {
-		case lexer.PLUS, lexer.MINUS, lexer.ASTERISK, lexer.SLASH,
+		case lexer.PLUS, lexer.MINUS, lexer.ASTERISK, lexer.SLASH, lexer.MODULO,
 				lexer.EQ, lexer.NOT_EQ, lexer.LT, lexer.GT, lexer.LT_EQ, lexer.GT_EQ,
 				lexer.AND, lexer.OR:
 			operator := p.curToken.Literal
@@ -935,7 +1026,7 @@ func (p *Parser) parseExpression(precedence int) Node {
 // Helper function to check if a token type is an infix operator
 func isInfixOperator(tokenType lexer.TokenType) bool {
 	switch tokenType {
-	case lexer.PLUS, lexer.MINUS, lexer.ASTERISK, lexer.SLASH,
+	case lexer.PLUS, lexer.MINUS, lexer.ASTERISK, lexer.SLASH, lexer.MODULO,
 			lexer.EQ, lexer.NOT_EQ, lexer.LT, lexer.GT, lexer.LT_EQ, lexer.GT_EQ,
 			lexer.AND, lexer.OR, lexer.LPAREN, lexer.LBRACKET, lexer.DOT:
 		return true
@@ -953,7 +1044,7 @@ func (p *Parser) peekPrecedence() int {
 		return LESSGREATER
 	case lexer.PLUS, lexer.MINUS:
 		return SUM
-	case lexer.ASTERISK, lexer.SLASH:
+	case lexer.ASTERISK, lexer.SLASH, lexer.MODULO:
 		return PRODUCT
 	case lexer.LPAREN:
 		return CALL
@@ -974,7 +1065,7 @@ func (p *Parser) curPrecedence() int {
 		return LESSGREATER
 	case lexer.PLUS, lexer.MINUS:
 		return SUM
-	case lexer.ASTERISK, lexer.SLASH:
+	case lexer.ASTERISK, lexer.SLASH, lexer.MODULO:
 		return PRODUCT
 	case lexer.LPAREN:
 		return CALL
@@ -1126,35 +1217,49 @@ func (p *Parser) parseFunctionParameters() []Parameter {
 }
 
 func (p *Parser) parseArrayLiteral() Node {
-	// Skip '['
+	arrayLit := &ArrayLiteral{Elements: []Node{}}
+
+	// We're already at '[', skip to the first element
 	p.nextToken()
 
-	var elements []Node
-
-	// Handle empty array
+	// Empty array case
 	if p.curToken.Type == lexer.RBRACKET {
 		p.nextToken() // Skip ']'
-		return &ArrayLiteral{Elements: elements}
+		return arrayLit
 	}
 
 	// Parse first element
-	element := p.parseExpression(LOWEST)
-	elements = append(elements, element)
-
-	// Parse remaining elements
-	for p.curToken.Type == lexer.COMMA {
-		p.nextToken() // Skip ','
-		element = p.parseExpression(LOWEST)
-		elements = append(elements, element)
+	firstElement := p.parseExpression(LOWEST)
+	if firstElement != nil {
+		arrayLit.Elements = append(arrayLit.Elements, firstElement)
 	}
 
-	if p.curToken.Type != lexer.RBRACKET {
-		p.errors = append(p.errors, fmt.Sprintf("Expected ']', got %s", p.curToken.Type))
+	// Parse remaining elements
+	for p.peekToken.Type == lexer.COMMA {
+		p.nextToken() // Move to the comma
+		p.nextToken() // Move past the comma
+
+		// Handle trailing comma
+		if p.curToken.Type == lexer.RBRACKET {
+			break
+		}
+
+		element := p.parseExpression(LOWEST)
+		if element != nil {
+			arrayLit.Elements = append(arrayLit.Elements, element)
+		}
+	}
+
+	// Check for closing bracket
+	if p.peekToken.Type != lexer.RBRACKET {
+		p.errors = append(p.errors, fmt.Sprintf("Expected ']', got %s", p.peekToken.Type))
 		return nil
 	}
 
-	p.nextToken() // Skip ']'
-	return &ArrayLiteral{Elements: elements}
+	p.nextToken() // Move to ']'
+	p.nextToken() // Skip the closing bracket
+
+	return arrayLit
 }
 
 func (p *Parser) parseCallExpression(function Node) Node {
@@ -1217,4 +1322,127 @@ func (p *Parser) parseDotExpression(object Node) Node {
 	p.nextToken() // Skip property name
 
 	return &DotExpr{Object: object, Property: property}
+}
+
+func (p *Parser) parseForStatement() Node {
+	fmt.Println("DEBUG: Entering parseForStatement")
+	fmt.Printf("DEBUG: Current token: %s, literal: %s\n", p.curToken.Type, p.curToken.Literal)
+	fmt.Printf("DEBUG: Peek token: %s, literal: %s\n", p.peekToken.Type, p.peekToken.Literal)
+
+	forStmt := &ForStmt{}
+
+	// Skip 'for' keyword
+	p.nextToken()
+	fmt.Printf("DEBUG: After 'for', current token: %s, literal: %s\n", p.curToken.Type, p.curToken.Literal)
+
+	// Parse the iterator variable
+	if p.curToken.Type != lexer.IDENT {
+		p.errors = append(p.errors, fmt.Sprintf("Expected identifier for for loop iterator, got %s", p.curToken.Type))
+		fmt.Printf("DEBUG: Error: Expected identifier for iterator, got %s\n", p.curToken.Type)
+		return nil
+	}
+	forStmt.Iterator = p.curToken.Literal
+	fmt.Printf("DEBUG: Iterator: %s\n", forStmt.Iterator)
+
+	// Check for 'in' keyword
+	p.nextToken()
+	fmt.Printf("DEBUG: After iterator, current token: %s, literal: %s\n", p.curToken.Type, p.curToken.Literal)
+	if p.curToken.Type != lexer.IN {
+		p.errors = append(p.errors, fmt.Sprintf("Expected 'in' keyword in for loop, got %s", p.curToken.Type))
+		fmt.Printf("DEBUG: Error: Expected 'in', got %s\n", p.curToken.Type)
+		return nil
+	}
+
+	// Parse the iterable expression
+	p.nextToken()
+	fmt.Printf("DEBUG: After 'in', current token: %s, literal: %s\n", p.curToken.Type, p.curToken.Literal)
+	forStmt.Iterable = p.parseExpression(LOWEST)
+	if forStmt.Iterable == nil {
+		p.errors = append(p.errors, "Expected iterable expression after 'in'")
+		fmt.Println("DEBUG: Error: Failed to parse iterable expression")
+		return nil
+	}
+	fmt.Printf("DEBUG: Iterable parsed: %s\n", forStmt.Iterable.String())
+
+	// Look for the 'do' keyword after parsing the iterable
+	// The parseExpression might have moved the token position, so we need to check current token first
+	fmt.Printf("DEBUG: After parsing iterable, current token: %s, literal: %s\n", p.curToken.Type, p.curToken.Literal)
+
+	// We need to find the 'do' keyword
+	// It might be the current token, the peek token, or we might need to advance
+	foundDo := false
+
+	// If current token is already 'do', we're good
+	if p.curToken.Type == lexer.DO {
+		foundDo = true
+		fmt.Println("DEBUG: Found 'do' as current token")
+	} else if p.peekToken.Type == lexer.DO {
+		// If next token is 'do', advance to it
+		p.nextToken()
+		foundDo = true
+		fmt.Println("DEBUG: Found 'do' as peek token, advanced to it")
+	} else {
+		// Otherwise, search for 'do' by advancing tokens until we find it or reach EOF/END
+		limit := 3 // Set a reasonable limit to prevent infinite loop
+		for i := 0; i < limit && !foundDo && p.curToken.Type != lexer.EOF && p.curToken.Type != lexer.END; i++ {
+			p.nextToken()
+			fmt.Printf("DEBUG: Searching for 'do', current token: %s\n", p.curToken.Type)
+			if p.curToken.Type == lexer.DO {
+				foundDo = true
+				fmt.Println("DEBUG: Found 'do' while searching")
+				break
+			}
+		}
+	}
+
+	if !foundDo {
+		p.errors = append(p.errors, fmt.Sprintf("Expected 'do' after for loop iterable, got %s", p.curToken.Type))
+		fmt.Printf("DEBUG: Error: Could not find 'do' keyword\n")
+		return nil
+	}
+
+	// Move past 'do'
+	p.nextToken()
+	fmt.Printf("DEBUG: After 'do', current token: %s, literal: %s\n", p.curToken.Type, p.curToken.Literal)
+
+	// Parse for loop body
+	forStmt.Body = &BlockStmt{Statements: []Node{}}
+
+	// Parse statements until we see 'end' or EOF
+	for p.curToken.Type != lexer.END && p.curToken.Type != lexer.EOF {
+		fmt.Printf("DEBUG: In body loop, current token: %s, literal: %s\n", p.curToken.Type, p.curToken.Literal)
+		if p.curToken.Type == lexer.SEMICOLON {
+			p.nextToken()
+			continue
+		}
+
+		stmt := p.parseStatement()
+		if stmt != nil {
+			forStmt.Body.Statements = append(forStmt.Body.Statements, stmt)
+			fmt.Printf("DEBUG: Added statement to body: %s\n", stmt.String())
+		} else {
+			fmt.Printf("DEBUG: Statement was nil, skipping\n")
+		}
+
+		// Advance to the next token only if we're not at the end
+		if p.curToken.Type != lexer.END && p.curToken.Type != lexer.EOF {
+			p.nextToken()
+			fmt.Printf("DEBUG: Advanced to next token: %s, literal: %s\n", p.curToken.Type, p.curToken.Literal)
+		}
+	}
+
+	// Check that we found the 'end' keyword
+	fmt.Printf("DEBUG: After body, current token: %s, literal: %s\n", p.curToken.Type, p.curToken.Literal)
+	if p.curToken.Type != lexer.END {
+		p.errors = append(p.errors, fmt.Sprintf("Expected 'end' to close for loop, got %s", p.curToken.Type))
+		fmt.Printf("DEBUG: Error: Expected 'end', got %s\n", p.curToken.Type)
+		return nil
+	}
+
+	// Skip 'end'
+	p.nextToken()
+	fmt.Printf("DEBUG: After 'end', current token: %s, literal: %s\n", p.curToken.Type, p.curToken.Literal)
+
+	fmt.Println("DEBUG: Successfully parsed for statement")
+	return forStmt
 }

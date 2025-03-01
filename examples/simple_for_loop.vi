@@ -1,0 +1,9 @@
+# Simple for loop test
+
+# Define an array
+numbers = [1, 2, 3, 4, 5]
+
+# Simple for loop
+for num in numbers do
+  puts num
+end

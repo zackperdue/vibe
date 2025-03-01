@@ -1,0 +1,9 @@
+# For loop test with a different syntax
+
+# Define an array
+numbers = [1, 2, 3, 4, 5]
+
+# Print each number
+for i in numbers do
+  puts i
+end

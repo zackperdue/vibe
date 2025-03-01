@@ -1,0 +1,11 @@
+# For loop test with a different syntax
+
+# Define an array
+numbers = [1, 2, 3, 4, 5]
+
+# Print each number using a different approach
+i = 0
+while i < 5 do
+  puts numbers[i]
+  i = i + 1
+end

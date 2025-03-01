@@ -12,11 +12,30 @@ import (
 	"github.com/example/vibe/parser"
 )
 
+var debug bool = false
+
 func main() {
 	args := os.Args[1:]
 
 	if len(args) == 0 {
 		fmt.Println("Usage: vibe <filename> or vibe -i (for interactive mode)")
+		fmt.Println("       vibe <filename> -d (for debug mode)")
+		return
+	}
+
+	// Check for debug flag
+	for i, arg := range args {
+		if arg == "-d" || arg == "--debug" {
+			debug = true
+			// Remove the debug flag from args
+			args = append(args[:i], args[i+1:]...)
+			break
+		}
+	}
+
+	if len(args) == 0 {
+		fmt.Println("Usage: vibe <filename> or vibe -i (for interactive mode)")
+		fmt.Println("       vibe <filename> -d (for debug mode)")
 		return
 	}
 
@@ -86,6 +105,14 @@ func runProgram(source string) {
 	if len(errors) > 0 {
 		printParserErrors(errors)
 		return
+	}
+
+	if debug {
+		fmt.Println("Program AST:")
+		for i, stmt := range program.Statements {
+			fmt.Printf("Statement %d: %s\n", i, stmt.String())
+		}
+		fmt.Println()
 	}
 
 	// Create an interpreter and evaluate the program

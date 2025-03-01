@@ -184,6 +184,63 @@ func TestFunctionDefinition(t *testing.T) {
 	testInfixExpression(t, returnStmt.Value, "x", "+", "y")
 }
 
+func TestForLoop(t *testing.T) {
+	input := `
+	for x in [1, 2, 3] do
+		print(x)
+	end
+	`
+
+	l := lexer.New(input)
+	program, errors := Parse(l)
+
+	if len(errors) > 0 {
+		t.Fatalf("Parser encountered errors: %v", errors)
+	}
+
+	if len(program.Statements) != 1 {
+		t.Fatalf("Program does not contain 1 statement. got=%d", len(program.Statements))
+	}
+
+	forStmt, ok := program.Statements[0].(*ForStmt)
+	if !ok {
+		t.Fatalf("Statement is not a ForStmt. got=%T", program.Statements[0])
+	}
+
+	if forStmt.Iterator != "x" {
+		t.Errorf("Iterator is not 'x'. got=%s", forStmt.Iterator)
+	}
+
+	// Check that the iterable is an array literal
+	arrayLiteral, ok := forStmt.Iterable.(*ArrayLiteral)
+	if !ok {
+		t.Fatalf("Iterable is not an ArrayLiteral. got=%T", forStmt.Iterable)
+	}
+
+	if len(arrayLiteral.Elements) != 3 {
+		t.Errorf("Array does not have 3 elements. got=%d", len(arrayLiteral.Elements))
+	}
+
+	// Test that the body contains a print statement
+	if len(forStmt.Body.Statements) != 1 {
+		t.Fatalf("Body does not have 1 statement. got=%d", len(forStmt.Body.Statements))
+	}
+
+	printStmt, ok := forStmt.Body.Statements[0].(*PrintStmt)
+	if !ok {
+		t.Fatalf("Body statement is not a PrintStmt. got=%T", forStmt.Body.Statements[0])
+	}
+
+	ident, ok := printStmt.Value.(*Identifier)
+	if !ok {
+		t.Fatalf("Print value is not an Identifier. got=%T", printStmt.Value)
+	}
+
+	if ident.Name != "x" {
+		t.Errorf("Print identifier is not 'x'. got=%s", ident.Name)
+	}
+}
+
 // Helper functions for tests
 
 func testAssignmentStatement(t *testing.T, stmt Node, name string) bool {

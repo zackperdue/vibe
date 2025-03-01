@@ -1,0 +1,16 @@
+# For loop with nested expressions
+# This test uses more complex expressions in the loop body
+
+numbers = [5, 10, 15, 20, 25]
+
+puts "For loop with calculations:"
+for num in numbers do
+  # Perform some calculations
+  doubled = num * 2
+  puts "Number: " + num + " doubled is: " + doubled
+
+  # Conditional expression
+  if num > 10 do
+    puts "This number is greater than 10"
+  end
+end

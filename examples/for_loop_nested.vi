@@ -1,0 +1,20 @@
+# Nested for loops test
+# This test demonstrates nested for loops
+
+outer = [1, 2, 3]
+inner = ["a", "b", "c"]
+
+puts "Nested for loops:"
+for x in outer do
+  puts "Outer loop: " + x
+
+  # Nested for loop
+  for y in inner do
+    puts "  Inner loop: " + y
+    puts "  Combined: " + x + "-" + y
+  end
+
+  puts "Completed inner loop for " + x
+end
+
+puts "All loops completed"

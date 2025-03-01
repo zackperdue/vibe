@@ -1,0 +1,26 @@
+# Complex for loop test
+
+# Define an array
+numbers = [1, 2, 3, 4, 5]
+
+# Simple for loop
+puts "Simple for loop:"
+for num in numbers do
+  puts num
+end
+
+# Nested for loop
+puts "Nested for loop:"
+# Simplify the matrix definition to avoid nested array parsing issues
+matrix = [1, 2, 3, 4, 5, 6]
+for i in [0, 2, 4] do
+  puts matrix[i]
+  puts matrix[i+1]
+end
+
+# For loop with calculation
+puts "For loop with calculation:"
+for i in [1, 2, 3, 4, 5] do
+  result = i * 2
+  puts result
+end

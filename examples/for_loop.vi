@@ -1,0 +1,54 @@
+# For Loop Examples
+# Demonstrates the for loop syntax in Vibe
+
+# Simple for loop over an array
+puts "Iterating over an array:"
+numbers = [1, 2, 3, 4, 5]
+
+for num in numbers do
+  puts num
+end
+
+puts ""  # Empty line for spacing
+
+# Using a for loop with a range
+puts "Counting from 1 to 5:"
+for i in [1, 2, 3, 4, 5] do
+  puts i
+end
+
+puts ""  # Empty line for spacing
+
+# Using for loop with strings
+puts "Characters in 'Hello':"
+chars = ["H", "e", "l", "l", "o"]
+for char in chars do
+  puts char
+end
+
+puts ""  # Empty line for spacing
+
+# Nested for loops
+puts "Multiplication table (2x2):"
+rows = [1, 2]
+cols = [1, 2]
+
+for row in rows do
+  for col in cols do
+    result = row * col
+    puts row
+    puts " * "
+    puts col
+    puts " = "
+    puts result
+  end
+  puts "---"
+end
+
+# For loop with conditional inside
+puts "Even numbers from 1 to 10:"
+for i in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] do
+  if i % 2 == 0
+    puts i
+  end
+end
