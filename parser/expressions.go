@@ -16,6 +16,7 @@ func (p *Parser) parseExpression(precedence int) ast.Node {
 
 	// Handle prefix expressions
 	var leftExp ast.Node
+	var skipNextToken bool = false
 
 	switch p.curToken.Type {
 	case lexer.IDENT:
@@ -65,7 +66,13 @@ func (p *Parser) parseExpression(precedence int) ast.Node {
 	case lexer.LBRACKET:
 		fmt.Println("DEBUG parseExpression: found LBRACKET, calling parseArrayLiteral")
 		leftExp = p.parseArrayLiteral()
-		// No need to advance token here as parseArrayLiteral handles it
+
+		// parseArrayLiteral doesn't advance past the closing bracket, so we need to do it here
+		if p.curTokenIs(lexer.RBRACKET) {
+			p.nextToken() // Move past the closing bracket
+			skipNextToken = true // Skip the next token advancement since we already advanced
+		}
+
 		fmt.Printf("DEBUG parseExpression (after parseArrayLiteral): current token: %s (%s) at line %d, column %d, peek token: %s (%s) at line %d, column %d\n",
 			p.curToken.Type, p.curToken.Literal, p.curToken.Line, p.curToken.Column,
 			p.peekToken.Type, p.peekToken.Literal, p.peekToken.Line, p.peekToken.Column)
@@ -83,7 +90,10 @@ func (p *Parser) parseExpression(precedence int) ast.Node {
 	}
 
 	// Move to the next token after the prefix expression
-	p.nextToken()
+	// Skip this if we already advanced the token
+	if !skipNextToken {
+		p.nextToken()
+	}
 
 	// Special case for function calls
 	if p.curTokenIs(lexer.LPAREN) {
@@ -346,35 +356,24 @@ func (p *Parser) parseDotExpression(object ast.Node) ast.Node {
 	return dotExpr
 }
 
-// parseArrayLiteral parses an array literal
+// parseArrayLiteral parses an array literal expression
 func (p *Parser) parseArrayLiteral() ast.Node {
-	fmt.Printf("DEBUG parseArrayLiteral: current token: %s (%s) at line %d, column %d, peek token: %s (%s) at line %d, column %d\n",
-		p.curToken.Type, p.curToken.Literal, p.curToken.Line, p.curToken.Column,
-		p.peekToken.Type, p.peekToken.Literal, p.peekToken.Line, p.peekToken.Column)
-
-	// Create the array literal - cur token is [
+	fmt.Println("DEBUG parseArrayLiteral: starting")
 	arrayLit := &ast.ArrayLiteral{
 		Elements: []ast.Node{},
 	}
 
-	// Skip the opening bracket [
-	p.nextToken()
-	fmt.Printf("DEBUG parseArrayLiteral (after skip [): current token: %s (%s) at line %d, column %d, peek token: %s (%s) at line %d, column %d\n",
-		p.curToken.Type, p.curToken.Literal, p.curToken.Line, p.curToken.Column,
-		p.peekToken.Type, p.peekToken.Literal, p.peekToken.Line, p.peekToken.Column)
-
-	// Handle empty array case: []
-	if p.curTokenIs(lexer.RBRACKET) {
-		fmt.Println("DEBUG parseArrayLiteral: empty array case")
-		p.nextToken() // Move past the closing bracket
-		fmt.Printf("DEBUG parseArrayLiteral (after empty array): current token: %s (%s) at line %d, column %d, peek token: %s (%s) at line %d, column %d\n",
-			p.curToken.Type, p.curToken.Literal, p.curToken.Line, p.curToken.Column,
-			p.peekToken.Type, p.peekToken.Literal, p.peekToken.Line, p.peekToken.Column)
+	// Check for empty array []
+	if p.peekTokenIs(lexer.RBRACKET) {
+		fmt.Println("DEBUG parseArrayLiteral: found empty array")
+		p.nextToken() // Move past the opening bracket to the closing bracket
+		// Don't advance past the closing bracket yet
 		return arrayLit
 	}
 
 	// Parse the first element
 	fmt.Println("DEBUG parseArrayLiteral: parsing first element")
+	p.nextToken() // Move past the opening bracket
 	firstElement := p.parseExpression(ast.LOWEST)
 	if firstElement == nil {
 		fmt.Println("DEBUG parseArrayLiteral: first element is nil")
@@ -396,10 +395,7 @@ func (p *Parser) parseArrayLiteral() ast.Node {
 		// Allow trailing comma [1, 2, ]
 		if p.curTokenIs(lexer.RBRACKET) {
 			fmt.Println("DEBUG parseArrayLiteral: found trailing comma")
-			p.nextToken() // Move past the closing bracket
-			fmt.Printf("DEBUG parseArrayLiteral (after trailing comma): current token: %s (%s) at line %d, column %d, peek token: %s (%s) at line %d, column %d\n",
-				p.curToken.Type, p.curToken.Literal, p.curToken.Line, p.curToken.Column,
-				p.peekToken.Type, p.peekToken.Literal, p.peekToken.Line, p.peekToken.Column)
+			// Don't advance past the closing bracket yet
 			return arrayLit
 		}
 
@@ -417,10 +413,7 @@ func (p *Parser) parseArrayLiteral() ast.Node {
 	// Check if we're already at the closing bracket
 	if p.curTokenIs(lexer.RBRACKET) {
 		fmt.Println("DEBUG parseArrayLiteral: at closing bracket")
-		p.nextToken() // Move past the closing bracket
-		fmt.Printf("DEBUG parseArrayLiteral (after closing bracket): current token: %s (%s) at line %d, column %d, peek token: %s (%s) at line %d, column %d\n",
-			p.curToken.Type, p.curToken.Literal, p.curToken.Line, p.curToken.Column,
-			p.peekToken.Type, p.peekToken.Literal, p.peekToken.Line, p.peekToken.Column)
+		// Don't advance past the closing bracket yet
 		return arrayLit
 	}
 
@@ -432,9 +425,6 @@ func (p *Parser) parseArrayLiteral() ast.Node {
 		return nil
 	}
 
-	// We've already advanced the token in expectPeek
-	fmt.Printf("DEBUG parseArrayLiteral (after expectPeek): current token: %s (%s) at line %d, column %d, peek token: %s (%s) at line %d, column %d\n",
-		p.curToken.Type, p.curToken.Literal, p.curToken.Line, p.curToken.Column,
-		p.peekToken.Type, p.peekToken.Literal, p.peekToken.Line, p.peekToken.Column)
+	// Don't advance past the closing bracket yet
 	return arrayLit
 }

@@ -132,6 +132,10 @@ func (p *Parser) parseWhileStatement() ast.Node {
 
 // parseForStatement parses a for loop statement
 func (p *Parser) parseForStatement() ast.Node {
+	fmt.Printf("DEBUG parseForStatement: current token: %s (%s) at line %d, column %d, peek token: %s (%s) at line %d, column %d\n",
+		p.curToken.Type, p.curToken.Literal, p.curToken.Line, p.curToken.Column,
+		p.peekToken.Type, p.peekToken.Literal, p.peekToken.Line, p.peekToken.Column)
+
 	// Current token is 'for'
 	forStmt := &ast.ForStmt{}
 
@@ -158,18 +162,44 @@ func (p *Parser) parseForStatement() ast.Node {
 		return nil
 	}
 
-	// After parsing the iterable expression, we need to check for the DO token
-	if !p.curTokenIs(lexer.DO) {
-		if !p.expectPeek(lexer.DO) {
-			p.addError(fmt.Sprintf("Expected 'do' after iterable, got %s at line %d, column %d",
-				p.peekToken.Type, p.peekToken.Line, p.peekToken.Column))
-			return nil
-		}
+	fmt.Printf("DEBUG parseForStatement (after parsing iterable): current token: %s (%s) at line %d, column %d, peek token: %s (%s) at line %d, column %d\n",
+		p.curToken.Type, p.curToken.Literal, p.curToken.Line, p.curToken.Column,
+		p.peekToken.Type, p.peekToken.Literal, p.peekToken.Line, p.peekToken.Column)
+
+	// Create an empty block for the body
+	forStmt.Body = &ast.BlockStmt{Statements: []ast.Node{}}
+
+	// Check if we're already at END (which means we missed DO)
+	if p.curTokenIs(lexer.END) {
+		// This is a syntax error - we need a DO before END
+		p.addError(fmt.Sprintf("Expected 'do' before 'end' in for loop at line %d, column %d",
+			p.curToken.Line, p.curToken.Column))
+		return nil
 	}
 
-	// Parse the body - this will advance to the END token
-	p.nextToken() // Move past 'do' to the first statement in the body
-	forStmt.Body = p.parseBlockStatements(lexer.END)
+	// Check if current token is DO
+	if !p.curTokenIs(lexer.DO) {
+		p.addError(fmt.Sprintf("Expected 'do' after iterable, got %s at line %d, column %d",
+			p.curToken.Type, p.curToken.Line, p.curToken.Column))
+		return nil
+	}
+
+	fmt.Printf("DEBUG parseForStatement (at do): current token: %s (%s) at line %d, column %d, peek token: %s (%s) at line %d, column %d\n",
+		p.curToken.Type, p.curToken.Literal, p.curToken.Line, p.curToken.Column,
+		p.peekToken.Type, p.peekToken.Literal, p.peekToken.Line, p.peekToken.Column)
+
+	// Check if the body is empty (do end)
+	if p.peekTokenIs(lexer.END) {
+		p.nextToken() // Move to END token
+	} else {
+		// Parse the body - this will advance to the END token
+		p.nextToken() // Move past 'do' to the first statement in the body
+		forStmt.Body = p.parseBlockStatements(lexer.END)
+	}
+
+	fmt.Printf("DEBUG parseForStatement (after body): current token: %s (%s) at line %d, column %d, peek token: %s (%s) at line %d, column %d\n",
+		p.curToken.Type, p.curToken.Literal, p.curToken.Line, p.curToken.Column,
+		p.peekToken.Type, p.peekToken.Literal, p.peekToken.Line, p.peekToken.Column)
 
 	// After parsing the body, we should be at 'end'
 	if !p.curTokenIs(lexer.END) {
@@ -178,8 +208,11 @@ func (p *Parser) parseForStatement() ast.Node {
 		return nil
 	}
 
-	// Move past 'end'
-	p.nextToken()
+	p.nextToken() // Move past 'end'
+
+	fmt.Printf("DEBUG parseForStatement (end): current token: %s (%s) at line %d, column %d, peek token: %s (%s) at line %d, column %d\n",
+		p.curToken.Type, p.curToken.Literal, p.curToken.Line, p.curToken.Column,
+		p.peekToken.Type, p.peekToken.Literal, p.peekToken.Line, p.peekToken.Column)
 
 	return forStmt
 }
@@ -308,19 +341,26 @@ func (p *Parser) parseTypeAnnotation() *ast.TypeAnnotation {
 		var typeParams []ast.Node
 
 		// Parse type parameters until we hit the closing '>'
-		for !p.curTokenIs(lexer.GT) {
-			// Each type parameter must be an identifier
-			if !p.curTokenIs(lexer.IDENT) {
+		for !p.curTokenIs(lexer.GT) && !p.curTokenIs(lexer.EOF) {
+			// Parse the type parameter, which could be a simple type or another generic type
+			var param ast.Node
+
+			if p.curTokenIs(lexer.IDENT) {
+				// Check if this is a generic type (has a '<' after it)
+				if p.peekTokenIs(lexer.LT) {
+					// This is a nested generic type
+					param = p.parseTypeAnnotation() // This will handle the nested generic
+				} else {
+					// Simple type
+					param = &ast.TypeAnnotation{TypeName: p.curToken.Literal}
+					p.nextToken() // Advance past the identifier
+				}
+			} else {
 				p.addError(fmt.Sprintf("Expected type parameter name, got %s", p.curToken.Type))
 				break
 			}
 
-			// Create a type annotation for this parameter and add it to the list
-			param := &ast.TypeAnnotation{TypeName: p.curToken.Literal}
 			typeParams = append(typeParams, param)
-
-			// Advance past the type parameter name
-			p.nextToken()
 
 			// If we have a comma, advance past it to the next parameter
 			if p.curTokenIs(lexer.COMMA) {
@@ -336,7 +376,9 @@ func (p *Parser) parseTypeAnnotation() *ast.TypeAnnotation {
 		typeAnnotation.TypeParams = typeParams
 
 		// Advance past the closing '>'
-		p.nextToken()
+		if p.curTokenIs(lexer.GT) {
+			p.nextToken()
+		}
 	} else {
 		// No generic parameters, just advance past the type name
 		p.nextToken()
