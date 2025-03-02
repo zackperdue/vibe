@@ -1,0 +1,12 @@
+# Vibe interpreter executable
+vibe
+
+# Build and dependency directories
+/vendor/
+/bin/
+/dist/
+
+# System files
+.DS_Store
+Thumbs.db
+.env
