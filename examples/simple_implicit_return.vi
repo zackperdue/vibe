@@ -1,0 +1,15 @@
+# Simple test for implicit returns
+
+def get_message(): string do
+  # Set a variable
+  msg = "hello world"
+  # No need for a separate return statement,
+  # The interpreter will use the last variable value
+end
+
+# Test the function call
+puts(get_message())
+
+# Test method call
+message = get_message()
+puts(message.upcase())

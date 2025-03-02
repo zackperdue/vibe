@@ -1,0 +1,12 @@
+# Simple function test with method call
+
+# Define a simple function that returns a string
+def greeting(): string do
+  return "hello"
+end
+
+# Call the function and print the result
+puts greeting()
+
+# Call the function and call a method on the result
+puts greeting().upcase()

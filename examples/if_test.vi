@@ -1,0 +1,15 @@
+# If statement test inside a function
+
+def conditional(): string do
+  result = "initial"
+
+  if true do
+    result = "true branch"
+  end
+
+  return result
+end
+
+# Use the function without top-level return
+puts conditional()
+puts conditional().upcase()

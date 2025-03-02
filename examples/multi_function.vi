@@ -1,0 +1,15 @@
+# Multiple functions test
+
+# Define a simple function
+def greeting(): string do
+  return "hello"
+end
+
+# Define another function
+def farewell(): string do
+  return "goodbye"
+end
+
+# Call the functions
+puts greeting()
+puts farewell()

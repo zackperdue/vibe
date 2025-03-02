@@ -1,0 +1,10 @@
+# Function call only
+
+# Import the function definition
+require "./examples/function_def.vi"
+
+# Call the function and print the result
+puts greeting()
+
+# Call the function and call a method on the result
+puts greeting().upcase()

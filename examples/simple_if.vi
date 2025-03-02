@@ -1,0 +1,9 @@
+# Simple if statement test
+
+result = "initial"
+
+if true
+  result = "true branch"
+end
+
+puts result

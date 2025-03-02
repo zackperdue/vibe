@@ -148,7 +148,7 @@ func TestNumberTokens(t *testing.T) {
 }
 
 func TestKeywords(t *testing.T) {
-	input := `def let var true false if else elsif return while nil print`
+	input := `def let var true false if else elsif return while nil puts`
 
 	l := New(input)
 

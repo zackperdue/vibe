@@ -1,0 +1,11 @@
+# Simple method chaining examples
+
+# String methods
+puts "hello".upcase
+puts "HELLO".downcase
+puts "hello world".capitalize
+puts "hello world".titleize
+
+# Number methods
+puts 42.to_s
+puts 3.14.to_s

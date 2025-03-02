@@ -1,0 +1,5 @@
+# Test method chaining
+
+puts "hello".upcase
+puts "HELLO".downcase
+puts "hello world".capitalize

@@ -1,0 +1,10 @@
+# Method call test
+
+# Direct method call on string literal
+puts "hello"
+puts "hello".upcase()
+
+# Store a string in a variable and call a method
+message = "world"
+puts message
+puts message.upcase()

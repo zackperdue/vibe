@@ -1,0 +1,9 @@
+# Very simple function with method chain test
+
+def greeting(): string do
+  return "hello"
+end
+
+
+
+puts greeting().upcase()

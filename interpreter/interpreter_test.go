@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/example/vibe/ast"
 	"github.com/example/vibe/lexer"
 	"github.com/example/vibe/parser"
 )
@@ -19,9 +20,9 @@ func TestEvalIntegerExpression(t *testing.T) {
 
 	for _, tt := range tests {
 		// Create a program with a single number literal
-		program := &parser.Program{
-			Statements: []parser.Node{
-				&parser.NumberLiteral{
+		program := &ast.Program{
+			Statements: []ast.Node{
+				&ast.NumberLiteral{
 					Value: float64(tt.input),
 					IsInt: true,
 				},
@@ -48,9 +49,9 @@ func TestEvalBooleanExpression(t *testing.T) {
 
 	for _, tt := range tests {
 		// Create a program with a single boolean literal
-		program := &parser.Program{
-			Statements: []parser.Node{
-				&parser.BooleanLiteral{
+		program := &ast.Program{
+			Statements: []ast.Node{
+				&ast.BooleanLiteral{
 					Value: tt.input,
 				},
 			},
@@ -78,18 +79,18 @@ func TestIfElseExpressions(t *testing.T) {
 
 	for _, tt := range tests {
 		// Create a program with an if statement directly
-		program := &parser.Program{
-			Statements: []parser.Node{
-				&parser.IfStmt{
-					Condition: &parser.BooleanLiteral{Value: tt.condition},
-					Consequence: &parser.BlockStmt{
-						Statements: []parser.Node{
-							&parser.NumberLiteral{Value: float64(tt.consequence), IsInt: true},
+		program := &ast.Program{
+			Statements: []ast.Node{
+				&ast.IfStmt{
+					Condition: &ast.BooleanLiteral{Value: tt.condition},
+					Consequence: &ast.BlockStmt{
+						Statements: []ast.Node{
+							&ast.NumberLiteral{Value: float64(tt.consequence), IsInt: true},
 						},
 					},
-					Alternative: &parser.BlockStmt{
-						Statements: []parser.Node{
-							&parser.NumberLiteral{Value: float64(tt.alternative), IsInt: true},
+					Alternative: &ast.BlockStmt{
+						Statements: []ast.Node{
+							&ast.NumberLiteral{Value: float64(tt.alternative), IsInt: true},
 						},
 					},
 				},
@@ -119,32 +120,32 @@ func TestReturnStatements(t *testing.T) {
 func TestFunctionApplication(t *testing.T) {
 	// Test a simple function application
 	// Create a program with a function definition and a call
-	program := &parser.Program{
-		Statements: []parser.Node{
+	program := &ast.Program{
+		Statements: []ast.Node{
 			// Define a function 'add' that takes two parameters and returns their sum
-			&parser.FunctionDef{
+			&ast.FunctionDef{
 				Name: "add",
-				Parameters: []parser.Parameter{
-					{Name: "a", Type: &parser.TypeAnnotation{TypeName: "int"}},
-					{Name: "b", Type: &parser.TypeAnnotation{TypeName: "int"}},
+				Parameters: []ast.Parameter{
+					{Name: "a", Type: &ast.TypeAnnotation{TypeName: "int"}},
+					{Name: "b", Type: &ast.TypeAnnotation{TypeName: "int"}},
 				},
-				ReturnType: &parser.TypeAnnotation{TypeName: "int"},
-				Body: &parser.BlockStmt{
-					Statements: []parser.Node{
-						&parser.BinaryExpr{
-							Left: &parser.Identifier{Name: "a"},
+				ReturnType: &ast.TypeAnnotation{TypeName: "int"},
+				Body: &ast.BlockStmt{
+					Statements: []ast.Node{
+						&ast.BinaryExpr{
+							Left: &ast.Identifier{Name: "a"},
 							Operator: "+",
-							Right: &parser.Identifier{Name: "b"},
+							Right: &ast.Identifier{Name: "b"},
 						},
 					},
 				},
 			},
 			// Call the function with arguments 5 and 7
-			&parser.CallExpr{
-				Function: &parser.Identifier{Name: "add"},
-				Args: []parser.Node{
-					&parser.NumberLiteral{Value: 5, IsInt: true},
-					&parser.NumberLiteral{Value: 7, IsInt: true},
+			&ast.CallExpr{
+				Function: &ast.Identifier{Name: "add"},
+				Args: []ast.Node{
+					&ast.NumberLiteral{Value: 5, IsInt: true},
+					&ast.NumberLiteral{Value: 7, IsInt: true},
 				},
 			},
 		},
@@ -177,36 +178,36 @@ func TestStringConcatenation(t *testing.T) {
 
 func TestTypeSystem(t *testing.T) {
 	// Create a program with typed variables and a function call
-	program := &parser.Program{
-		Statements: []parser.Node{
+	program := &ast.Program{
+		Statements: []ast.Node{
 			// Variable declaration: a: int = 5
-			&parser.VariableDecl{
+			&ast.VariableDecl{
 				Name: "a",
-				TypeAnnotation: &parser.TypeAnnotation{TypeName: "int"},
-				Value: &parser.NumberLiteral{Value: 5, IsInt: true},
+				TypeAnnotation: &ast.TypeAnnotation{TypeName: "int"},
+				Value: &ast.NumberLiteral{Value: 5, IsInt: true},
 			},
 
 			// Function definition: identity(value: int) -> int
-			&parser.FunctionDef{
+			&ast.FunctionDef{
 				Name: "identity",
-				Parameters: []parser.Parameter{
-					{Name: "value", Type: &parser.TypeAnnotation{TypeName: "int"}},
+				Parameters: []ast.Parameter{
+					{Name: "value", Type: &ast.TypeAnnotation{TypeName: "int"}},
 				},
-				ReturnType: &parser.TypeAnnotation{TypeName: "int"},
-				Body: &parser.BlockStmt{
-					Statements: []parser.Node{
-						&parser.ReturnStmt{
-							Value: &parser.Identifier{Name: "value"},
+				ReturnType: &ast.TypeAnnotation{TypeName: "int"},
+				Body: &ast.BlockStmt{
+					Statements: []ast.Node{
+						&ast.ReturnStmt{
+							Value: &ast.Identifier{Name: "value"},
 						},
 					},
 				},
 			},
 
 			// Function call: identity(50)
-			&parser.CallExpr{
-				Function: &parser.Identifier{Name: "identity"},
-				Args: []parser.Node{
-					&parser.NumberLiteral{Value: 50, IsInt: true},
+			&ast.CallExpr{
+				Function: &ast.Identifier{Name: "identity"},
+				Args: []ast.Node{
+					&ast.NumberLiteral{Value: 50, IsInt: true},
 				},
 			},
 		},

@@ -1,0 +1,7 @@
+# Simple type declarations only
+
+# Simple type declaration
+type StringAlias = string
+
+# Generic type declaration
+type StringArray = Array<string>

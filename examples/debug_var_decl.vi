@@ -1,0 +1,15 @@
+# Debug variable declarations with type annotations
+
+# Type declarations
+type StringAlias = string
+type StringArray = Array<string>
+
+# Normal assignment (without type annotation)
+a = "Hello"
+
+# Variable declaration with type annotation (on a single line now)
+b: StringAlias = "World"
+
+# Print values
+puts a
+puts b

@@ -1,0 +1,16 @@
+# Function with variable test
+
+# Define a function that returns a string
+def greeting(): string do
+  return "hello"
+end
+
+# Call the function and store the result in a variable
+result = greeting()
+
+# Call a method on the variable
+upper = result.upcase()
+
+# Print the results
+puts result
+puts upper

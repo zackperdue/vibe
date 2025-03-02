@@ -1,0 +1,10 @@
+# Test file for return statements
+
+def get_string(): string do
+  result = "test string"
+  return result
+end
+
+# Test the function
+puts get_string()
+puts get_string().upcase()

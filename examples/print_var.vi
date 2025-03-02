@@ -1,0 +1,7 @@
+# Print variable test
+
+# Store a string in a variable
+message = "hello"
+
+# Print the variable with different syntax
+puts(message)

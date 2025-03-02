@@ -1,0 +1,11 @@
+# Simple print test
+
+# Print string literals
+puts "hello"
+puts "world"
+
+# Store a string in a variable
+message = "hello world"
+
+# Print the variable
+puts message

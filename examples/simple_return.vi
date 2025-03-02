@@ -1,0 +1,9 @@
+# Simple return test
+
+def get_value(): string do
+  return "test value"
+end
+
+# Test the function
+puts get_value()
+puts get_value().upcase()

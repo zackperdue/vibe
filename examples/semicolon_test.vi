@@ -1,0 +1,12 @@
+# Test with semicolon after function definition
+
+# Define a simple function
+def greeting(): string do
+  return "hello"
+end;
+
+# Execute the function and store the result
+result = greeting()
+
+# Now call a method on the result variable
+puts result.upcase()

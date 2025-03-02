@@ -1,0 +1,5 @@
+# Minimal test with string method calls
+
+puts "hello"
+puts "HELLO"
+puts "world".upcase()

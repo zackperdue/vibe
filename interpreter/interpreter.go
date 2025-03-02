@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/example/vibe/ast"
 	"github.com/example/vibe/lexer"
 	"github.com/example/vibe/parser"
 	"github.com/example/vibe/types"
@@ -72,14 +73,14 @@ func (r *ReturnValue) Type() string { return "RETURN" }
 func (r *ReturnValue) Inspect() string { return r.Value.Inspect() }
 func (r *ReturnValue) VibeType() types.Type { return r.Value.VibeType() }
 
-// FunctionValue represents a function
+// FunctionValue represents a function in the interpreter
 type FunctionValue struct {
-	Name           string
-	Parameters     []parser.Parameter
-	Body           *parser.BlockStmt
-	ReturnType     types.Type
-	Env            *Environment
-	BuiltinFunc    func(args []Value) Value
+	Name        string
+	Parameters  []ast.Parameter
+	Body        *ast.BlockStmt
+	Env         *Environment
+	ReturnType  types.Type
+	BuiltinFunc func(args []Value) Value
 }
 
 func (f *FunctionValue) Type() string { return "FUNCTION" }
@@ -401,61 +402,61 @@ func registerBuiltinClasses(env *Environment) {
 }
 
 // Eval evaluates the AST and returns the result
-func (i *Interpreter) Eval(node parser.Node) Value {
+func (i *Interpreter) Eval(node ast.Node) Value {
 	return i.eval(node, i.env)
 }
 
-func (i *Interpreter) eval(node parser.Node, env *Environment) Value {
+func (i *Interpreter) eval(node ast.Node, env *Environment) Value {
 	switch node := node.(type) {
-	case *parser.Program:
+	case *ast.Program:
 		return i.evalProgram(node, env)
-	case *parser.BlockStmt:
+	case *ast.BlockStmt:
 		return i.evalBlockStatement(node, env)
-	case *parser.NumberLiteral:
+	case *ast.NumberLiteral:
 		if node.IsInt {
 			return &IntegerValue{Value: int(node.Value)}
 		}
 		return &FloatValue{Value: node.Value}
-	case *parser.StringLiteral:
+	case *ast.StringLiteral:
 		return &StringValue{Value: node.Value}
-	case *parser.BooleanLiteral:
+	case *ast.BooleanLiteral:
 		return &BooleanValue{Value: node.Value}
-	case *parser.NilLiteral:
+	case *ast.NilLiteral:
 		return &NilValue{}
-	case *parser.Identifier:
+	case *ast.Identifier:
 		return i.evalIdentifier(node, env)
-	case *parser.PrintStmt:
+	case *ast.PrintStmt:
 		return i.evalPrintStatement(node, env)
-	case *parser.RequireStmt:
+	case *ast.RequireStmt:
 		return i.evalRequireStatement(node, env)
-	case *parser.Assignment:
+	case *ast.Assignment:
 		return i.evalAssignment(node, env)
-	case *parser.VariableDecl:
+	case *ast.VariableDecl:
 		return i.evalVariableDeclaration(node, env)
-	case *parser.FunctionDef:
+	case *ast.FunctionDef:
 		return i.evalFunctionDefinition(node, env)
-	case *parser.CallExpr:
+	case *ast.CallExpr:
 		return i.evalCallExpression(node, env)
-	case *parser.MethodCall:
+	case *ast.MethodCall:
 		return i.evalMethodCall(node, env)
-	case *parser.ClassInst:
+	case *ast.ClassInst:
 		return i.evalClassInstantiation(node, env)
-	case *parser.ReturnStmt:
+	case *ast.ReturnStmt:
 		return i.evalReturnStatement(node, env)
-	case *parser.IfStmt:
+	case *ast.IfStmt:
 		return i.evalIfStatement(node, env)
-	case *parser.WhileStmt:
+	case *ast.WhileStmt:
 		return i.evalWhileStatement(node, env)
-	case *parser.ForStmt:
+	case *ast.ForStmt:
 		return i.evalForStatement(node, env)
-	case *parser.BinaryExpr:
+	case *ast.BinaryExpr:
 		return i.evalBinaryExpression(node, env)
-	case *parser.ArrayLiteral:
+	case *ast.ArrayLiteral:
 		return i.evalArrayLiteral(node, env)
-	case *parser.TypeAnnotation:
+	case *ast.TypeAnnotation:
 		// Type annotations don't evaluate to a value on their own
 		return &NilValue{}
-	case *parser.TypeDeclaration:
+	case *ast.TypeDeclaration:
 		// Type declarations don't evaluate to a value
 		return &NilValue{}
 	default:
@@ -464,7 +465,7 @@ func (i *Interpreter) eval(node parser.Node, env *Environment) Value {
 	}
 }
 
-func (i *Interpreter) evalVariableDeclaration(node *parser.VariableDecl, env *Environment) Value {
+func (i *Interpreter) evalVariableDeclaration(node *ast.VariableDecl, env *Environment) Value {
 	var value Value
 	if node.Value != nil {
 		value = i.eval(node.Value, env)
@@ -499,7 +500,7 @@ func (i *Interpreter) evalVariableDeclaration(node *parser.VariableDecl, env *En
 	return &NilValue{}
 }
 
-func (i *Interpreter) parseTypeAnnotation(node *parser.TypeAnnotation) types.Type {
+func (i *Interpreter) parseTypeAnnotation(node *ast.TypeAnnotation) types.Type {
 	switch node.TypeName {
 	case "int":
 		return types.IntType
@@ -513,7 +514,7 @@ func (i *Interpreter) parseTypeAnnotation(node *parser.TypeAnnotation) types.Typ
 		return types.AnyType
 	case "Array":
 		if len(node.TypeParams) > 0 {
-			elemType := i.parseTypeAnnotation(node.TypeParams[0].(*parser.TypeAnnotation))
+			elemType := i.parseTypeAnnotation(node.TypeParams[0].(*ast.TypeAnnotation))
 			return types.ArrayType{ElementType: elemType}
 		}
 		// Default to Array of any
@@ -522,7 +523,7 @@ func (i *Interpreter) parseTypeAnnotation(node *parser.TypeAnnotation) types.Typ
 		if len(node.TypeParams) > 0 {
 			var unionTypes []types.Type
 			for _, param := range node.TypeParams {
-				unionTypes = append(unionTypes, i.parseTypeAnnotation(param.(*parser.TypeAnnotation)))
+				unionTypes = append(unionTypes, i.parseTypeAnnotation(param.(*ast.TypeAnnotation)))
 			}
 			return types.UnionType{Types: unionTypes}
 		}
@@ -534,7 +535,7 @@ func (i *Interpreter) parseTypeAnnotation(node *parser.TypeAnnotation) types.Typ
 	}
 }
 
-func (i *Interpreter) evalProgram(program *parser.Program, env *Environment) Value {
+func (i *Interpreter) evalProgram(program *ast.Program, env *Environment) Value {
 	var result Value
 	result = &NilValue{}
 
@@ -550,32 +551,18 @@ func (i *Interpreter) evalProgram(program *parser.Program, env *Environment) Val
 	return result
 }
 
-func (i *Interpreter) evalBlockStatement(block *parser.BlockStmt, env *Environment) Value {
+func (i *Interpreter) evalBlockStatement(block *ast.BlockStmt, env *Environment) Value {
 	var result Value
 	result = &NilValue{}
 
+	// Create a new environment for the block's scope
+	blockEnv := NewEnclosedEnvironment(env)
+
 	for _, statement := range block.Statements {
-		result = i.eval(statement, env)
+		result = i.eval(statement, blockEnv)
 
-		// If we hit a return statement, break execution and return it up
-		if result.Type() == "RETURN" {
-			return result
-		}
-	}
-
-	// The last statement in a block is treated as the implicit return value,
-	// but only for expression statements, not declarations or control flow
-	if len(block.Statements) > 0 {
-		lastStmt := block.Statements[len(block.Statements)-1]
-		switch lastStmt.(type) {
-		case *parser.Assignment, *parser.VariableDecl, *parser.PrintStmt, *parser.TypeDeclaration:
-			// These statements don't produce a value to return
-			return &NilValue{}
-		case *parser.IfStmt, *parser.WhileStmt, *parser.FunctionDef:
-			// Control flow statements are handled separately
-			return result
-		default:
-			// For expression statements, return the result
+		// If we hit a return statement, break out of the block
+		if _, ok := result.(*ReturnValue); ok {
 			return result
 		}
 	}
@@ -583,7 +570,7 @@ func (i *Interpreter) evalBlockStatement(block *parser.BlockStmt, env *Environme
 	return result
 }
 
-func (i *Interpreter) evalIdentifier(node *parser.Identifier, env *Environment) Value {
+func (i *Interpreter) evalIdentifier(node *ast.Identifier, env *Environment) Value {
 	if val, ok := env.Get(node.Name); ok {
 		return val
 	}
@@ -591,13 +578,13 @@ func (i *Interpreter) evalIdentifier(node *parser.Identifier, env *Environment) 
 	return &StringValue{Value: fmt.Sprintf("Error: variable '%s' not found", node.Name)}
 }
 
-func (i *Interpreter) evalPrintStatement(node *parser.PrintStmt, env *Environment) Value {
+func (i *Interpreter) evalPrintStatement(node *ast.PrintStmt, env *Environment) Value {
 	value := i.eval(node.Value, env)
 	fmt.Println(value.Inspect())
 	return value
 }
 
-func (i *Interpreter) evalRequireStatement(node *parser.RequireStmt, env *Environment) Value {
+func (i *Interpreter) evalRequireStatement(node *ast.RequireStmt, env *Environment) Value {
 	// Remove quotes from the path
 	path := strings.Trim(node.Path, "\"'")
 
@@ -659,8 +646,14 @@ func (i *Interpreter) evalRequireStatement(node *parser.RequireStmt, env *Enviro
 	return &NilValue{}
 }
 
-func (i *Interpreter) evalAssignment(node *parser.Assignment, env *Environment) Value {
-	val := i.eval(node.Value, env)
+func (i *Interpreter) evalAssignment(node *ast.Assignment, env *Environment) Value {
+	var val Value
+	if node.Value != nil {
+		val = i.eval(node.Value, env)
+	} else {
+		// If no value is provided, use nil
+		val = &NilValue{}
+	}
 
 	err := env.Set(node.Name, val)
 	if err != nil {
@@ -670,7 +663,7 @@ func (i *Interpreter) evalAssignment(node *parser.Assignment, env *Environment) 
 	return &NilValue{}
 }
 
-func (i *Interpreter) evalFunctionDefinition(node *parser.FunctionDef, env *Environment) Value {
+func (i *Interpreter) evalFunctionDefinition(node *ast.FunctionDef, env *Environment) Value {
 	// Parse return type
 	var returnType types.Type
 	if node.ReturnType != nil {
@@ -694,7 +687,7 @@ func (i *Interpreter) evalFunctionDefinition(node *parser.FunctionDef, env *Envi
 	return &NilValue{}
 }
 
-func (i *Interpreter) evalCallExpression(node *parser.CallExpr, env *Environment) Value {
+func (i *Interpreter) evalCallExpression(node *ast.CallExpr, env *Environment) Value {
 	function := i.eval(node.Function, env)
 	args := i.evalExpressions(node.Args, env)
 
@@ -787,7 +780,7 @@ func (i *Interpreter) evalCallExpression(node *parser.CallExpr, env *Environment
 }
 
 func (i *Interpreter) evalExpressions(
-	exps []parser.Node,
+	exps []ast.Node,
 	env *Environment,
 ) []Value {
 	var result []Value
@@ -800,7 +793,7 @@ func (i *Interpreter) evalExpressions(
 	return result
 }
 
-func (i *Interpreter) evalReturnStatement(node *parser.ReturnStmt, env *Environment) Value {
+func (i *Interpreter) evalReturnStatement(node *ast.ReturnStmt, env *Environment) Value {
 	var value Value
 
 	if node.Value != nil {
@@ -812,7 +805,7 @@ func (i *Interpreter) evalReturnStatement(node *parser.ReturnStmt, env *Environm
 	return &ReturnValue{Value: value}
 }
 
-func (i *Interpreter) evalIfStatement(node *parser.IfStmt, env *Environment) Value {
+func (i *Interpreter) evalIfStatement(node *ast.IfStmt, env *Environment) Value {
 	condition := i.eval(node.Condition, env)
 
 	// Check if the condition is true
@@ -836,7 +829,7 @@ func (i *Interpreter) evalIfStatement(node *parser.IfStmt, env *Environment) Val
 	return &NilValue{}
 }
 
-func (i *Interpreter) evalWhileStatement(node *parser.WhileStmt, env *Environment) Value {
+func (i *Interpreter) evalWhileStatement(node *ast.WhileStmt, env *Environment) Value {
 	for {
 		condition := i.eval(node.Condition, env)
 		if !isTruthy(condition) {
@@ -852,7 +845,7 @@ func (i *Interpreter) evalWhileStatement(node *parser.WhileStmt, env *Environmen
 	return &NilValue{}
 }
 
-func (i *Interpreter) evalForStatement(node *parser.ForStmt, env *Environment) Value {
+func (i *Interpreter) evalForStatement(node *ast.ForStmt, env *Environment) Value {
 	// Evaluate the iterable expression
 	iterable := i.eval(node.Iterable, env)
 
@@ -860,7 +853,7 @@ func (i *Interpreter) evalForStatement(node *parser.ForStmt, env *Environment) V
 	loopEnv := NewEnclosedEnvironment(env)
 
 	// Special case for range expressions (e.g., for i in 0..5)
-	if binExpr, ok := node.Iterable.(*parser.BinaryExpr); ok && binExpr.Operator == ".." {
+	if binExpr, ok := node.Iterable.(*ast.BinaryExpr); ok && binExpr.Operator == ".." {
 		// Evaluate the start and end of the range
 		startValue := i.eval(binExpr.Left, env)
 		endValue := i.eval(binExpr.Right, env)
@@ -931,7 +924,7 @@ func (i *Interpreter) evalForStatement(node *parser.ForStmt, env *Environment) V
 	return &NilValue{}
 }
 
-func (i *Interpreter) evalArrayLiteral(node *parser.ArrayLiteral, env *Environment) Value {
+func (i *Interpreter) evalArrayLiteral(node *ast.ArrayLiteral, env *Environment) Value {
 	elements := make([]Value, 0, len(node.Elements))
 
 	for _, element := range node.Elements {
@@ -942,7 +935,7 @@ func (i *Interpreter) evalArrayLiteral(node *parser.ArrayLiteral, env *Environme
 	return &ArrayValue{Elements: elements}
 }
 
-func (i *Interpreter) evalBinaryExpression(node *parser.BinaryExpr, env *Environment) Value {
+func (i *Interpreter) evalBinaryExpression(node *ast.BinaryExpr, env *Environment) Value {
 	left := i.eval(node.Left, env)
 	right := i.eval(node.Right, env)
 
@@ -1113,7 +1106,7 @@ func isError(obj Value) bool {
 }
 
 // Update evalClassInstantiation to create object instances
-func (i *Interpreter) evalClassInstantiation(node *parser.ClassInst, env *Environment) Value {
+func (i *Interpreter) evalClassInstantiation(node *ast.ClassInst, env *Environment) Value {
 	// Evaluate the class expression
 	classVal := i.eval(node.Class, env)
 	if classVal == nil {
@@ -1147,7 +1140,7 @@ func (i *Interpreter) evalClassInstantiation(node *parser.ClassInst, env *Enviro
 }
 
 // Update evalMethodCall to handle method invocation
-func (i *Interpreter) evalMethodCall(node *parser.MethodCall, env *Environment) Value {
+func (i *Interpreter) evalMethodCall(node *ast.MethodCall, env *Environment) Value {
 	// Evaluate the object that the method is being called on
 	objectVal := i.eval(node.Object, env)
 	if objectVal == nil {

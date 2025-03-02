@@ -1,0 +1,4 @@
+# String method call test
+
+# Direct method call on string literal
+puts "hello".upcase()

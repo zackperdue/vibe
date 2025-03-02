@@ -1,0 +1,13 @@
+# Function with method call test
+
+# Define a function that returns a string
+def greeting(): string do
+  return "hello"
+end
+
+# Call the function and then call a method on the result
+result = greeting()
+puts result.upcase()
+
+# Direct method call on function result
+puts greeting().upcase()

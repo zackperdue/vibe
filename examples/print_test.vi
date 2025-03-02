@@ -1,0 +1,11 @@
+# Print statement test
+
+# Store a string in a variable
+message = "hello"
+
+# Call a method on the variable
+result = message.upcase()
+
+# Print the results with different syntax
+puts(message)
+puts(result)

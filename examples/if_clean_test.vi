@@ -1,0 +1,24 @@
+# Clean if statement test
+
+def conditional(): string do
+  # Initialize result variable
+  result = "initial"
+
+  # If condition (always true in this test)
+  if true do
+    result = "true branch"
+  end
+
+  # The last statement needs to be an expression, not an assignment
+  # This expression becomes the implicit return value
+  result  # This is now the last expression
+end
+
+# Test the function by calling it
+puts(conditional())
+
+# Store the result in a variable
+result_string = conditional()
+
+# Test method call on the result
+puts(result_string.upcase())

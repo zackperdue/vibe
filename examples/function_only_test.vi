@@ -1,0 +1,8 @@
+# Simple function-only test with return
+
+def hello(): string do
+  return "Hello, World!"
+end
+
+puts hello()
+puts hello().upcase()

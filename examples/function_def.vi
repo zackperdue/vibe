@@ -1,0 +1,6 @@
+# Function definition only
+
+# Define a function that returns a string
+def greeting(): string do
+  return "hello"
+end

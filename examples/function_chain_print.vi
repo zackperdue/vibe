@@ -1,0 +1,9 @@
+# Simple function with method chain in print statement
+
+# Define a simple function
+def greeting(): string do
+  return "hello"
+end
+
+# Call the function with method chain in print statement
+puts greeting().upcase()

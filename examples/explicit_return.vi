@@ -1,0 +1,14 @@
+# Test file with explicit return statement
+
+def get_string(): string do
+  result = "test string"
+
+  # Explicit return statement on its own line
+  return result
+end
+
+# Test the function
+puts "Function result:"
+puts get_string()
+puts "Uppercase result:"
+puts get_string().upcase()

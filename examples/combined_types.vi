@@ -1,0 +1,15 @@
+# Combined type declarations example
+
+# Simple type declaration
+type StringAlias = string
+
+# Generic type declaration
+type StringArray = Array<string>
+
+# Using the type declarations
+a: StringAlias = "Hello"
+b: StringArray = ["World", "!"]
+
+puts a
+puts b[0]
+puts b[1]

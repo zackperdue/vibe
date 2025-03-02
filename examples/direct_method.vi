@@ -1,0 +1,8 @@
+# Direct method call on string literal
+
+# This should work without any issues
+puts "hello".upcase()
+
+# Store in variable and call method
+message = "world"
+puts message.upcase()

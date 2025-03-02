@@ -1,0 +1,9 @@
+# Function definition and method call test
+
+# Define a simple function
+def greeting(): string do
+  return "hello"
+end
+
+# Execute the function and call a method directly on the result
+puts greeting().upcase()

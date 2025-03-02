@@ -1,0 +1,19 @@
+# Function call with method chaining in separate statements
+
+# Define a function that returns a string
+def greeting(): string do
+  return "hello"
+end
+
+# Call the function and store the result
+result = greeting()
+
+# Call a method on the result
+upper = result.upcase()
+
+# Print the results
+puts result
+puts upper
+
+# Try direct method chaining
+puts greeting().upcase()

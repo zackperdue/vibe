@@ -1,0 +1,25 @@
+# Debug variable declarations with type annotations - complex cases
+
+# Type declarations
+type StringAlias = string
+type StringArray = Array<string>
+
+# Normal assignment (without type annotation)
+a = "Hello"
+
+# Variable declaration with type annotation (on a single line)
+b: StringAlias = "World"
+
+# Variable declaration with type annotation (multi-line)
+c:
+  StringAlias = "Multi-line"
+
+# Variable declaration with type annotation (multi-line with value on separate line)
+d: StringAlias
+  = "Another multi-line"
+
+# Print values
+puts a
+puts b
+puts c
+puts d

@@ -1,0 +1,11 @@
+# Variable method call test
+
+# Define a variable with a string
+message = "hello"
+
+# Call a method on the variable
+result = message.upcase()
+
+# Print the results
+puts message
+puts result

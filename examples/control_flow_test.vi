@@ -1,0 +1,55 @@
+# Control flow test with and without the 'do' keyword
+
+# Function with if statement using 'do'
+def test_with_do(): string do
+  result = "initial"
+
+  if true do
+    result = "true branch with do"
+  end
+
+  return result
+end
+
+# Function with if statement without 'do'
+def test_without_do(): string do
+  result = "initial"
+
+  if true
+    result = "true branch without do"
+  end
+
+  return result
+end
+
+# Function with while loop using 'do'
+def test_while_with_do(): string do
+  result = "initial"
+  count = 0
+
+  while count < 1 do
+    result = "while with do"
+    count = count + 1
+  end
+
+  return result
+end
+
+# Function with while loop without 'do'
+def test_while_without_do(): string do
+  result = "initial"
+  count = 0
+
+  while count < 1
+    result = "while without do"
+    count = count + 1
+  end
+
+  return result
+end
+
+# Test the functions
+puts "Testing if with do: " + test_with_do()
+puts "Testing if without do: " + test_without_do()
+puts "Testing while with do: " + test_while_with_do()
+puts "Testing while without do: " + test_while_without_do()

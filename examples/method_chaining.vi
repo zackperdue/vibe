@@ -1,0 +1,32 @@
+# Method chaining examples
+
+# String methods
+puts "hello".upcase
+puts "HELLO".downcase
+puts "hello world".capitalize
+puts "hello world".titleize
+
+# Number methods
+puts 42.to_s
+puts 3.14.to_s
+puts (-10).abs
+
+# Function chaining
+def greeting: string do
+  return "hello world"
+end
+
+puts greeting
+puts greeting.upcase
+puts greeting.capitalize
+puts greeting.titleize
+
+# Multiple chaining
+puts "hello".upcase.downcase.capitalize
+
+# Function with multiple chaining
+def get_name: string do
+  return "john smith"
+end
+
+puts get_name.titleize

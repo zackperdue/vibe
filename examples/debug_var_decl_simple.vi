@@ -1,0 +1,3 @@
+# Simple debug file with just a variable declaration with type annotation
+b: string = "World"
+puts b

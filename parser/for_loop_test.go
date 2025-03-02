@@ -3,6 +3,7 @@ package parser_test
 import (
 	"testing"
 
+	"github.com/example/vibe/ast"
 	"github.com/example/vibe/lexer"
 	"github.com/example/vibe/parser"
 )
@@ -22,7 +23,7 @@ func TestSimpleForLoop(t *testing.T) {
 	}
 
 	// Check the statement is a for loop
-	forStmt, ok := program.Statements[0].(*parser.ForStmt)
+	forStmt, ok := program.Statements[0].(*ast.ForStmt)
 	if !ok {
 		t.Fatalf("Statement is not a ForStmt. got=%T", program.Statements[0])
 	}
@@ -32,7 +33,7 @@ func TestSimpleForLoop(t *testing.T) {
 	}
 
 	// Check that the iterable is an array literal
-	arrayLiteral, ok := forStmt.Iterable.(*parser.ArrayLiteral)
+	arrayLiteral, ok := forStmt.Iterable.(*ast.ArrayLiteral)
 	if !ok {
 		t.Fatalf("Iterable is not an ArrayLiteral. got=%T", forStmt.Iterable)
 	}

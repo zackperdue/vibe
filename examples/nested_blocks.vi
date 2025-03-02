@@ -1,0 +1,26 @@
+# Test nested block parsing
+
+# Define a function with nested blocks
+def outer_function(): string do
+  result = "outer"
+
+  # Nested if statement
+  if true
+    result = "nested if"
+
+    # Double-nested while loop
+    while true
+      result = "nested while"
+      break
+    end
+
+  end
+
+  return result
+end
+
+# Call the function
+puts outer_function()
+
+# Try method chaining
+puts outer_function().upcase()

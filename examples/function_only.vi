@@ -1,0 +1,9 @@
+# Function call test
+
+# Define a function that returns a string
+def greeting(): string do
+  return "hello"
+end
+
+# Call the function and print the result
+puts greeting()

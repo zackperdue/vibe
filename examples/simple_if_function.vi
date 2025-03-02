@@ -1,0 +1,11 @@
+# Test file with a simple function containing an if statement
+
+def test_if(): string do
+  if true
+    return "true branch"
+  else
+    return "false branch"
+  end
+end
+
+puts test_if()

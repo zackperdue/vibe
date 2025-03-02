@@ -3,7 +3,7 @@ package types
 import (
 	"fmt"
 
-	"github.com/example/vibe/parser"
+	"github.com/example/vibe/ast"
 )
 
 // Type represents a type in the language
@@ -171,7 +171,7 @@ func NewTypeChecker() *TypeChecker {
 }
 
 // CheckType verifies that a node's type matches the expected type
-func (tc *TypeChecker) CheckType(node parser.Node, expected Type) (Type, error) {
+func (tc *TypeChecker) CheckType(node ast.Node, expected Type) (Type, error) {
 	actual, err := tc.InferType(node)
 	if err != nil {
 		return nil, err
@@ -185,18 +185,18 @@ func (tc *TypeChecker) CheckType(node parser.Node, expected Type) (Type, error) 
 }
 
 // InferType determines the type of a node
-func (tc *TypeChecker) InferType(node parser.Node) (Type, error) {
+func (tc *TypeChecker) InferType(node ast.Node) (Type, error) {
 	switch n := node.(type) {
-	case *parser.NumberLiteral:
+	case *ast.NumberLiteral:
 		if n.IsInt {
 			return IntType, nil
 		}
 		return FloatType, nil
-	case *parser.StringLiteral:
+	case *ast.StringLiteral:
 		return StringType, nil
-	case *parser.BooleanLiteral:
+	case *ast.BooleanLiteral:
 		return BoolType, nil
-	case *parser.NilLiteral:
+	case *ast.NilLiteral:
 		return NilType, nil
 	default:
 		return AnyType, nil

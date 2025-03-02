@@ -1,0 +1,12 @@
+# Function method chaining examples
+
+# Define a function that returns a string
+def greeting: string do
+  return "hello world"
+end
+
+# Call the function and print the result
+puts greeting
+
+# Call the function and chain a method call
+puts greeting.upcase

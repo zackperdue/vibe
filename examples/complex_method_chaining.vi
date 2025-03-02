@@ -1,0 +1,13 @@
+# Complex method chaining examples
+
+# Define a function that returns a string
+def get_name: string do
+  return "john smith"
+end
+
+# Chain multiple methods
+puts get_name.upcase.downcase.capitalize
+
+# Chain methods on literals
+puts "hello world".upcase.downcase.capitalize
+puts 42.to_s.upcase
