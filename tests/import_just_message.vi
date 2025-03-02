@@ -1,0 +1,5 @@
+# Import message variable from just_message.vi
+import message from "./just_message"
+
+# Print the imported variable
+puts "Imported message: " + message

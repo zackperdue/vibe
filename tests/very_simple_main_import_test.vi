@@ -1,0 +1,5 @@
+# Import message variable from very_simple_import.vi
+import message from "./very_simple_import"
+
+# Print the imported variable
+puts "Imported message: " + message

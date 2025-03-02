@@ -1,0 +1,9 @@
+# This is a simple test file for import functionality
+
+# Define a variable to be imported
+message = "Hello from imported file!"
+
+# Define a function to be imported
+def add(a, b) do
+  return a + b
+end

@@ -1,0 +1,7 @@
+# Test complex expression
+def complex_expr(a, b, c) do
+  result1 = a + b
+  result2 = result1 * c
+  result3 = a / b
+  return result2 - result3
+end

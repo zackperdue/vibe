@@ -1,0 +1,20 @@
+# This is a test file for require functionality
+
+# Define a variable to be required
+message = "Hello from required file!"
+
+# Define a function to be required
+def add(a, b) do
+  return a + b
+end
+
+# Define a class to be required
+class Greeter do
+  def initialize(name) do
+    @name = name
+  end
+
+  def greet() do
+    return "Hello, " + @name + "!"
+  end
+end

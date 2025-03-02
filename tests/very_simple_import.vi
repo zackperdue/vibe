@@ -1,0 +1,7 @@
+# Define a variable
+message = "Hello from imported file!"
+
+# Define a function
+def add(a, b) do
+  return a + b
+end

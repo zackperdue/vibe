@@ -1,0 +1,6 @@
+# This is a test file for testing require error handling
+
+# Try to require a file that doesn't exist
+require "./non_existent_file"
+
+puts "This line should not be executed if the error is handled correctly"

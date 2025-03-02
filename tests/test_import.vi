@@ -1,0 +1,20 @@
+# This is a test file for import functionality
+
+# Define a function to be imported
+def add(a, b) do
+  return a + b
+end
+
+# Define a variable to be imported
+message = "Hello from imported file!"
+
+# Define a class to be imported
+class Greeter do
+  def initialize(name) do
+    @name = name
+  end
+
+  def greet() do
+    return "Hello, " + @name + "!"
+  end
+end

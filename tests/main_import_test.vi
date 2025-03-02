@@ -1,0 +1,19 @@
+# This is a test file for testing import functionality
+
+# Import add function and message variable from test_import.vi
+import add, message from "./test_import"
+
+# Test the imported function
+result = add(5, 3)
+puts "Result of add(5, 3): " + result
+
+# Test the imported variable
+puts "Imported message: " + message
+
+# Import Greeter class
+import Greeter from "./test_import"
+
+# Test the imported class
+greeter = new Greeter("World")
+greeting = greeter.greet()
+puts greeting

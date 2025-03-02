@@ -36,6 +36,8 @@ const (
 	ArrayLiteralNode   NodeType = "ArrayLiteral"
 	IndexExprNode    NodeType = "IndexExpr"
 	DotExprNode      NodeType = "DotExpr"
+	ImportStmtNode   NodeType = "ImportStmt"
+	RequireStmtNode  NodeType = "RequireStmt"
 
 	// Class-related node types
 	ClassDefNode      NodeType = "ClassDef"      // For class definitions
@@ -676,6 +678,7 @@ func (p *Parser) parseStatement() Node {
 	case lexer.RETURN:
 		return p.parseReturnStatement()
 	case lexer.PRINT:
+		fmt.Printf("DEBUG: parseStatement - detected print token, calling parsePrintStatement\n")
 		return p.parsePrintStatement()
 	case lexer.IF:
 		return p.parseIfStatement()
@@ -686,10 +689,15 @@ func (p *Parser) parseStatement() Node {
 		return p.parseForStatement()
 	case lexer.WHILE:
 		return p.parseWhileStatement()
+	case lexer.IMPORT:
+		fmt.Println("DEBUG: Detected IMPORT token in parseStatement, calling parseImportStatement")
+		return p.parseImportStatement()
+	case lexer.REQUIRE:
+		fmt.Println("DEBUG: Detected REQUIRE token in parseStatement, calling parseRequireStatement")
+		return p.parseRequireStatement()
 	case lexer.CLASS:
-		// TODO: Uncomment when parseClassDefinition is implemented
-		// return p.parseClassDefinition("", "")
-		return nil
+		fmt.Println("DEBUG: Detected CLASS token in parseStatement, calling parseClassDefinition")
+		return p.parseClassDefinition()
 	case lexer.SUPER:
 		return p.parseSuperCall()
 	case lexer.IN, lexer.DO, lexer.END:
@@ -2334,4 +2342,180 @@ func (p *Parser) expectPeek(t lexer.TokenType) bool {
 
 func (p *Parser) peekTokenIs(t lexer.TokenType) bool {
 	return p.peekToken.Type == t
+}
+
+// ImportStmt represents an import statement
+type ImportStmt struct {
+	Packages []string
+	Path     string
+}
+
+func (i *ImportStmt) Type() NodeType { return ImportStmtNode }
+func (i *ImportStmt) String() string {
+	packages := strings.Join(i.Packages, ", ")
+	return fmt.Sprintf("ImportStmt([%s] from %s)", packages, i.Path)
+}
+
+// RequireStmt represents a require statement
+type RequireStmt struct {
+	Path string
+}
+
+func (r *RequireStmt) Type() NodeType { return RequireStmtNode }
+func (r *RequireStmt) String() string {
+	return fmt.Sprintf("RequireStmt(%s)", r.Path)
+}
+
+func (p *Parser) parseImportStatement() Node {
+	fmt.Printf("DEBUG: parseImportStatement - starting at token: %s\n", p.curToken.Type)
+
+	// Skip 'import' keyword
+	p.nextToken()
+
+	// Parse package names
+	packages := []string{}
+
+	// First package name
+	if p.curToken.Type != lexer.IDENT {
+		p.errors = append(p.errors, fmt.Sprintf("Expected package name after 'import', got %s", p.curToken.Type))
+		return nil
+	}
+
+	packages = append(packages, p.curToken.Literal)
+	p.nextToken()
+
+	// Additional package names separated by commas
+	for p.curToken.Type == lexer.COMMA {
+		p.nextToken() // Skip comma
+
+		if p.curToken.Type != lexer.IDENT {
+			p.errors = append(p.errors, fmt.Sprintf("Expected package name after comma, got %s", p.curToken.Type))
+			return nil
+		}
+
+		packages = append(packages, p.curToken.Literal)
+		p.nextToken()
+	}
+
+	// Check for 'from' keyword
+	if p.curToken.Type != lexer.FROM {
+		p.errors = append(p.errors, fmt.Sprintf("Expected 'from' after package list, got %s", p.curToken.Type))
+		return nil
+	}
+
+	// Skip 'from' keyword
+	p.nextToken()
+
+	// Parse path string
+	if p.curToken.Type != lexer.STRING {
+		p.errors = append(p.errors, fmt.Sprintf("Expected string path after 'from', got %s", p.curToken.Type))
+		return nil
+	}
+
+	path := p.curToken.Literal
+	p.nextToken() // Move past the string
+
+	return &ImportStmt{
+		Packages: packages,
+		Path: path,
+	}
+}
+
+func (p *Parser) parseRequireStatement() Node {
+	fmt.Printf("DEBUG: parseRequireStatement - starting at token: %s\n", p.curToken.Type)
+
+	// Skip 'require' keyword
+	p.nextToken()
+
+	// Parse path string
+	if p.curToken.Type != lexer.STRING {
+		p.errors = append(p.errors, fmt.Sprintf("Expected string path after 'require', got %s", p.curToken.Type))
+		return nil
+	}
+
+	path := p.curToken.Literal
+	p.nextToken() // Move past the string
+
+	return &RequireStmt{
+		Path: path,
+	}
+}
+
+func (p *Parser) parseClassDefinition() Node {
+	fmt.Printf("DEBUG: parseClassDefinition - starting at token: %s\n", p.curToken.Type)
+
+	// Skip 'class' keyword
+	p.nextToken()
+
+	// Get class name
+	if p.curToken.Type != lexer.IDENT {
+		p.errors = append(p.errors, fmt.Sprintf("Expected class name after 'class', got %s", p.curToken.Type))
+		return nil
+	}
+
+	className := p.curToken.Literal
+	p.nextToken()
+
+	// Check for inheritance
+	var parentClass string
+	if p.curToken.Type == lexer.INHERITS {
+		p.nextToken() // Skip 'inherits'
+
+		if p.curToken.Type != lexer.IDENT {
+			p.errors = append(p.errors, fmt.Sprintf("Expected parent class name after 'inherits', got %s", p.curToken.Type))
+			return nil
+		}
+
+		parentClass = p.curToken.Literal
+		p.nextToken()
+	}
+
+	// Check for 'do' keyword
+	if p.curToken.Type != lexer.DO {
+		p.errors = append(p.errors, fmt.Sprintf("Expected 'do' after class declaration, got %s", p.curToken.Type))
+		return nil
+	}
+
+	// Skip 'do' keyword
+	p.nextToken()
+
+	// Parse methods and instance variables
+	methods := []Node{}
+
+	// Parse methods and instance variables
+	for p.curToken.Type != lexer.END && p.curToken.Type != lexer.EOF {
+		var stmt Node
+
+		if p.curToken.Type == lexer.FUNCTION {
+			// Parse method definition
+			stmt = p.parseFunctionDefinition()
+			if stmt != nil {
+				methods = append(methods, stmt)
+			}
+		} else if p.curToken.Type == lexer.AT {
+			// Parse instance variable
+			stmt = p.parseInstanceVariable()
+		} else {
+			// Parse other statements
+			stmt = p.parseStatement()
+		}
+
+		// Move to the next token if not at the end
+		if p.curToken.Type != lexer.END && p.curToken.Type != lexer.EOF {
+			p.nextToken()
+		}
+	}
+
+	// Skip the 'end' token
+	if p.curToken.Type == lexer.END {
+		p.nextToken()
+	} else {
+		p.errors = append(p.errors, "Expected 'end' to close class definition")
+	}
+
+	return &ClassDef{
+		Name:    className,
+		Parent:  parentClass,
+		Methods: methods,
+	}
 }
