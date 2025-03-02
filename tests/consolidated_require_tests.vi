@@ -1,0 +1,32 @@
+# Consolidated require tests
+# This file contains all test cases for the require functionality
+
+# Basic require test
+puts "=== Basic require test ==="
+require "./test_require"
+
+# Test the required function
+result = add(5, 3)
+puts "Result of add(5, 3): " + result
+
+# Test the required variable
+puts "Required message: " + message
+
+# Test the required class
+greeter = new Greeter("World")
+greeting = greeter.greet()
+puts greeting
+
+# The following tests are commented out because they would cause errors
+# Uncomment them individually to test error handling
+
+# Test: Require file not found
+# puts "=== Require file not found test ==="
+# require "./non_existent_file"
+# puts "This line should not be executed if the error is handled correctly"
+
+# Test: Require not at top level
+# puts "=== Require not at top level test ==="
+# message2 = "Hello from main file!"
+# require "./another_module"  # This should cause an error
+# puts "This line should not be executed if the error is handled correctly"

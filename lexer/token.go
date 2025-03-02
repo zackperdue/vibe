@@ -30,6 +30,7 @@ const (
 	ASTERISK = "*"
 	SLASH    = "/"
 	MODULO   = "%"
+	POWER    = "**"   // Exponentiation operator
 
 	LT = "<"
 	GT = ">"

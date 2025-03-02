@@ -1,0 +1,49 @@
+# Consolidated Edge Cases Tests
+# This file contains various edge cases for testing the language
+
+# Function with no parameters
+def no_params_function() do
+  puts "Function with no parameters called successfully"
+end
+
+# Test with large numbers
+def big_number() do
+  return 1000000000 * 2
+end
+
+# Test complex expression
+def complex_expr(a, b, c) do
+  result1 = a + b
+  result2 = result1 * c
+  result3 = a / b
+  return result2 - result3
+end
+
+# Nested function calls
+def outer(x) do
+  return inner(x) + 5
+end
+
+def inner(y) do
+  return y * 2
+end
+
+# Test function calls
+puts "=== Edge Cases Tests ==="
+
+puts "Calling no_params_function:"
+no_params_function()
+
+puts "\nCalling big_number:"
+result = big_number()
+puts "Result: " + result
+
+puts "\nCalling complex_expr with 10, 5, 3:"
+result = complex_expr(10, 5, 3)
+puts "Result: " + result
+
+puts "\nCalling outer with 7:"
+result = outer(7)
+puts "Result: " + result
+
+puts "\n=== All edge case tests completed ==="

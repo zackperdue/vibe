@@ -1,8 +1,0 @@
-# This is a test file for testing require functionality with a function
-
-# Require the simple function module
-require "./simple_function"
-
-# Test the required function
-result = add(5, 3)
-puts "Result of add(5, 3): " + result

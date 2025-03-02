@@ -1,4 +1,0 @@
-# Test with large numbers
-def big_number() do
-  return 1000000000 * 2
-end

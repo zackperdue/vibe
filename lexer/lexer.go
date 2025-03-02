@@ -96,6 +96,10 @@ func (l *Lexer) NextToken() Token {
 			ch := l.ch
 			l.readChar()
 			tok = Token{Type: MUL_ASSIGN, Literal: string(ch) + string(l.ch), Line: line, Column: column}
+		} else if l.peekChar() == '*' {
+			ch := l.ch
+			l.readChar()
+			tok = Token{Type: POWER, Literal: string(ch) + string(l.ch), Line: line, Column: column}
 		} else {
 			tok = NewToken(ASTERISK, l.ch, line, column)
 		}

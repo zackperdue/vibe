@@ -1,4 +1,0 @@
-# Function with no parameters
-def no_params_function() do
-  puts "Function with no parameters called successfully"
-end

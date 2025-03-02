@@ -1,4 +1,0 @@
-# This is a simple module file
-
-# Define a variable to be required
-message = "Hello from simple module!"

@@ -1,8 +1,0 @@
-# Nested function calls
-def outer(x) do
-  return inner(x) + 5
-end
-
-def inner(y) do
-  return y * 2
-end

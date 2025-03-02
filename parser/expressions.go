@@ -109,7 +109,7 @@ func (p *Parser) parseExpression(precedence int) ast.Node {
 // Helper function to check if a token type is an infix operator
 func isInfixOperator(tokenType lexer.TokenType) bool {
 	switch tokenType {
-	case lexer.PLUS, lexer.MINUS, lexer.ASTERISK, lexer.SLASH, lexer.MODULO,
+	case lexer.PLUS, lexer.MINUS, lexer.ASTERISK, lexer.SLASH, lexer.MODULO, lexer.POWER,
 		lexer.EQ, lexer.NOT_EQ, lexer.LT, lexer.GT, lexer.LT_EQ, lexer.GT_EQ,
 		lexer.AND, lexer.OR, lexer.LPAREN, lexer.LBRACKET, lexer.DOT:
 		return true
@@ -129,6 +129,8 @@ func (p *Parser) peekPrecedence() int {
 		return ast.SUM
 	case lexer.ASTERISK, lexer.SLASH, lexer.MODULO:
 		return ast.PRODUCT
+	case lexer.POWER:
+		return ast.POWER
 	case lexer.LPAREN:
 		return ast.CALL
 	case lexer.LBRACKET:
@@ -150,6 +152,8 @@ func (p *Parser) curPrecedence() int {
 		return ast.SUM
 	case lexer.ASTERISK, lexer.SLASH, lexer.MODULO:
 		return ast.PRODUCT
+	case lexer.POWER:
+		return ast.POWER
 	case lexer.LPAREN:
 		return ast.CALL
 	case lexer.LBRACKET:

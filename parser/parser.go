@@ -21,16 +21,16 @@ type Parser struct {
 
 // Define precedence levels
 const (
-	_ int = iota
-	LOWEST
+	LOWEST      = iota
 	EQUALS      // ==
 	LESSGREATER // > or <
 	SUM         // +
 	PRODUCT     // *
+	POWER       // **
 	PREFIX      // -X or !X
 	CALL        // myFunction(X)
 	INDEX       // array[index]
-	ATTRIBUTE   // obj.attr
+	ATTRIBUTE   // object.attribute
 )
 
 // New creates a new Parser
@@ -50,6 +50,7 @@ func New(l *lexer.Lexer) *Parser {
 		lexer.SLASH:    PRODUCT,
 		lexer.ASTERISK: PRODUCT,
 		lexer.MODULO:   PRODUCT,
+		lexer.POWER:    POWER,
 		lexer.LPAREN:   CALL,
 		lexer.LBRACKET: INDEX,
 		lexer.DOT:      ATTRIBUTE,
@@ -388,6 +389,12 @@ func (p *Parser) parseStatement() ast.Node {
 		return p.parseForStatement()
 	case lexer.IF:
 		return p.parseIfStatement()
+	case lexer.FUNCTION:
+		fmt.Println("DEBUG: Found function definition")
+		return p.parseFunctionDefinition()
+	case lexer.CLASS:
+		fmt.Println("DEBUG: Found class definition")
+		return p.parseClassDefinition()
 	default:
 		// For everything else, try to parse as an expression
 		return p.parseExpression(ast.LOWEST)

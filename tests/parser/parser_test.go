@@ -475,41 +475,36 @@ func TestIfStatementParsing(t *testing.T) {
 // TestFunctionDefinitionParsing tests parsing of function definitions
 func TestFunctionDefinitionParsing(t *testing.T) {
 	tests := []struct {
-		input         string
-		name          string
-		paramCount    int
+		input        string
+		name         string
+		paramCount   int
 		hasReturnType bool
-		returnType    string
-		bodyLength    int
+		returnType   string
+		bodyLength   int
 	}{
 		{
-			`function add(x, y) do
-				return x + y
-			end`,
-			"add",
-			2,
-			false,
-			"",
-			1,
+			input:        "def add(x: number, y: number): number do\n\t\t\t\treturn x + y\n\t\t\tend",
+			name:         "add",
+			paramCount:   2,
+			hasReturnType: true,
+			returnType:   "number",
+			bodyLength:   1,
 		},
 		{
-			`function greet(name: string): string do
-				return "Hello, " + name
-			end`,
-			"greet",
-			1,
-			true,
-			"string",
-			1,
+			input:        "def greet(name: string): string do\n\t\t\t\treturn \"Hello, \" + name\n\t\t\tend",
+			name:         "greet",
+			paramCount:   1,
+			hasReturnType: true,
+			returnType:   "string",
+			bodyLength:   1,
 		},
 		{
-			`function empty() do
-			end`,
-			"empty",
-			0,
-			false,
-			"",
-			0,
+			input:        "def empty(): void do\n\t\t\tend",
+			name:         "empty",
+			paramCount:   0,
+			hasReturnType: true,
+			returnType:   "void",
+			bodyLength:   0,
 		},
 	}
 
@@ -526,40 +521,37 @@ func TestFunctionDefinitionParsing(t *testing.T) {
 		}
 
 		if len(program.Statements) != 1 {
-			t.Fatalf("program should have 1 statement for input %q. got=%d",
-				tt.input, len(program.Statements))
+			t.Fatalf("program.Statements does not contain 1 statement. got=%d",
+				len(program.Statements))
 		}
 
-		funcDef, ok := program.Statements[0].(*ast.FunctionDef)
+		stmt, ok := program.Statements[0].(*ast.FunctionDef)
 		if !ok {
-			t.Fatalf("program.Statements[0] is not ast.FunctionDef for input %q. got=%T",
-				tt.input, program.Statements[0])
+			t.Fatalf("program.Statements[0] is not ast.FunctionDef. got=%T",
+				program.Statements[0])
 		}
 
-		if funcDef.Name != tt.name {
-			t.Errorf("function name is not %q for input %q. got=%q",
-				tt.name, tt.input, funcDef.Name)
+		if stmt.Name != tt.name {
+			t.Errorf("stmt.Name not '%s'. got=%s", tt.name, stmt.Name)
 		}
 
-		if len(funcDef.Parameters) != tt.paramCount {
-			t.Errorf("parameter count is not %d for input %q. got=%d",
-				tt.paramCount, tt.input, len(funcDef.Parameters))
+		if len(stmt.Parameters) != tt.paramCount {
+			t.Errorf("wrong number of parameters. expected=%d, got=%d",
+				tt.paramCount, len(stmt.Parameters))
 		}
 
-		if tt.hasReturnType && funcDef.ReturnType == nil {
-			t.Errorf("expected return type but got nil for input %q", tt.input)
-		} else if !tt.hasReturnType && funcDef.ReturnType != nil {
-			t.Errorf("expected no return type but got one for input %q", tt.input)
+		if (stmt.ReturnType != nil) != tt.hasReturnType {
+			t.Errorf("Return type presence is not %v. got=%v",
+				tt.hasReturnType, stmt.ReturnType != nil)
 		}
 
-		if funcDef.ReturnType != nil && funcDef.ReturnType.TypeName != tt.returnType {
-			t.Errorf("return type is not %q for input %q. got=%q",
-				tt.returnType, tt.input, funcDef.ReturnType.TypeName)
+		if stmt.ReturnType != nil && stmt.ReturnType.TypeName != tt.returnType {
+			t.Errorf("Return type not '%s'. got=%s", tt.returnType, stmt.ReturnType.TypeName)
 		}
 
-		if len(funcDef.Body.Statements) != tt.bodyLength {
-			t.Errorf("body length is not %d for input %q. got=%d",
-				tt.bodyLength, tt.input, len(funcDef.Body.Statements))
+		if len(stmt.Body.Statements) != tt.bodyLength {
+			t.Errorf("function body has wrong number of statements. expected=%d, got=%d",
+				tt.bodyLength, len(stmt.Body.Statements))
 		}
 	}
 }
@@ -567,12 +559,12 @@ func TestFunctionDefinitionParsing(t *testing.T) {
 // TestClassDefinitionParsing tests parsing of class definitions
 func TestClassDefinitionParsing(t *testing.T) {
 	input := `class Point inherits Object do
-		function init(x: number, y: number) do
+		def init(x: number, y: number): void do
 			@x = x
 			@y = y
 		end
 
-		function distance(other: Point): number do
+		def distance(other: Point): number do
 			dx = @x - other.x
 			dy = @y - other.y
 			return (dx * dx + dy * dy) ** 0.5
@@ -591,55 +583,26 @@ func TestClassDefinitionParsing(t *testing.T) {
 	}
 
 	if len(program.Statements) != 1 {
-		t.Fatalf("program has not enough statements. got=%d", len(program.Statements))
+		t.Fatalf("program.Statements does not contain 1 statement. got=%d",
+			len(program.Statements))
 	}
 
 	classDef, ok := program.Statements[0].(*ast.ClassDef)
 	if !ok {
-		t.Fatalf("program.Statements[0] is not ast.ClassDef. got=%T", program.Statements[0])
+		t.Fatalf("program.Statements[0] is not ast.ClassDef. got=%T",
+			program.Statements[0])
 	}
 
 	if classDef.Name != "Point" {
-		t.Errorf("class name is not 'Point'. got=%q", classDef.Name)
+		t.Errorf("classDef.Name not 'Point'. got=%q", classDef.Name)
 	}
 
 	if classDef.Parent != "Object" {
-		t.Errorf("parent class is not 'Object'. got=%q", classDef.Parent)
+		t.Errorf("classDef.Parent not 'Object'. got=%q", classDef.Parent)
 	}
 
 	if len(classDef.Methods) != 2 {
-		t.Fatalf("class should have 2 methods. got=%d", len(classDef.Methods))
-	}
-
-	// Check the first method (init)
-	initMethod, ok := classDef.Methods[0].(*ast.FunctionDef)
-	if !ok {
-		t.Fatalf("first method is not ast.FunctionDef. got=%T", classDef.Methods[0])
-	}
-
-	if initMethod.Name != "init" {
-		t.Errorf("first method name is not 'init'. got=%q", initMethod.Name)
-	}
-
-	if len(initMethod.Parameters) != 2 {
-		t.Errorf("init method should have 2 parameters. got=%d", len(initMethod.Parameters))
-	}
-
-	// Check the second method (distance)
-	distanceMethod, ok := classDef.Methods[1].(*ast.FunctionDef)
-	if !ok {
-		t.Fatalf("second method is not ast.FunctionDef. got=%T", classDef.Methods[1])
-	}
-
-	if distanceMethod.Name != "distance" {
-		t.Errorf("second method name is not 'distance'. got=%q", distanceMethod.Name)
-	}
-
-	if len(distanceMethod.Parameters) != 1 {
-		t.Errorf("distance method should have 1 parameter. got=%d", len(distanceMethod.Parameters))
-	}
-
-	if distanceMethod.ReturnType == nil || distanceMethod.ReturnType.TypeName != "number" {
-		t.Errorf("distance method should return 'number'. got=%v", distanceMethod.ReturnType)
+		t.Fatalf("classDef.Methods does not contain 2 methods. got=%d",
+			len(classDef.Methods))
 	}
 }

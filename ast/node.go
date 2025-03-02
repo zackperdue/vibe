@@ -75,8 +75,9 @@ const (
 	LESSGREATER = 3  // > or <
 	SUM        = 4  // +
 	PRODUCT    = 5  // *
-	PREFIX     = 6  // -X or !X
-	CALL       = 7  // myFunction(X)
-	INDEX      = 8  // array[index]
-	DOT        = 9  // obj.property
+	POWER      = 6  // **
+	PREFIX     = 7  // -X or !X
+	CALL       = 8  // myFunction(X)
+	INDEX      = 9  // array[index]
+	DOT        = 10  // obj.property
 )

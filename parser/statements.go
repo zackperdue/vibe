@@ -184,151 +184,162 @@ func (p *Parser) parseForStatement() ast.Node {
 	return forStmt
 }
 
-// parseFunctionDefinition parses a function definition
-func (p *Parser) parseFunctionDefinition() ast.Node {
-	// Current token is 'function'
-
-	// Move to function name
-	if !p.expectPeek(lexer.IDENT) {
-		p.addError(fmt.Sprintf("Expected function name, got %s", p.peekToken.Type))
-		return nil
-	}
-
-	name := p.curToken.Literal
-
-	// Parse parameters
-	parameters := p.parseFunctionParameters()
-
-	// Check for return type annotation
-	var returnType *ast.TypeAnnotation
-	if p.curTokenIs(lexer.COLON) {
-		p.nextToken() // Skip ':'
-		returnType = p.parseTypeAnnotation()
-	}
-
-	// Expect 'do' keyword
-	if !p.expectPeek(lexer.DO) {
-		p.addError(fmt.Sprintf("Expected 'do' after function definition, got %s", p.peekToken.Type))
-		return nil
-	}
-
-	// Parse function body
-	body := p.parseBlockStatements(lexer.END)
-
-	// Ensure 'end' token is consumed
-	if !p.curTokenIs(lexer.END) {
-		p.addError(fmt.Sprintf("Expected 'end' to close function body, got %s", p.curToken.Type))
-		return nil
-	}
-
-	p.nextToken() // Skip 'end'
-
-	return &ast.FunctionDef{
-		Name:       name,
-		Parameters: parameters,
-		ReturnType: returnType,
-		Body:       body,
-	}
-}
-
-// parseFunctionParameters parses function parameters with optional type annotations
+// parseFunctionParameters parses function parameters
 func (p *Parser) parseFunctionParameters() []ast.Parameter {
-	var parameters []ast.Parameter
+	parameters := []ast.Parameter{}
 
-	if !p.expectPeek(lexer.LPAREN) {
-		return parameters
-	}
-
-	// Handle empty parameter list
+	// Check for empty parameter list
 	if p.peekTokenIs(lexer.RPAREN) {
-		p.nextToken() // Move to the closing parenthesis
-		p.nextToken() // Move past the closing parenthesis to the next token
+		p.nextToken() // consume the closing parenthesis
+		p.nextToken() // move past the closing parenthesis
 		return parameters
 	}
 
-	p.nextToken() // Move past opening parenthesis to first parameter
+	// Move to the first parameter name
+	p.nextToken()
 
-	// Parse parameters
-	for !p.curTokenIs(lexer.RPAREN) && !p.curTokenIs(lexer.EOF) {
-		// Parse parameter name
-		if !p.curTokenIs(lexer.IDENT) {
-			p.addError(fmt.Sprintf("Expected parameter name, got %s", p.curToken.Type))
-			return parameters
-		}
-
-		param := ast.Parameter{Name: p.curToken.Literal}
-		p.nextToken() // Move past parameter name
-
-		// Parse type annotation if present
-		if p.curTokenIs(lexer.COLON) {
-			p.nextToken() // Move to type name
-			param.Type = p.parseTypeAnnotation()
-			// Note: parseTypeAnnotation will have advanced the token to the position AFTER the type
-		}
-
-		parameters = append(parameters, param)
-
-		// If the current token is a comma, move past it and continue parsing more parameters
-		if p.curTokenIs(lexer.COMMA) {
-			p.nextToken() // Skip comma
-			continue
-		}
-
-		// At this point, we should be at a closing parenthesis
-		break
+	// Parse first parameter
+	if !p.curTokenIs(lexer.IDENT) {
+		msg := fmt.Sprintf("Expected parameter name to be an identifier, got %s instead at line %d, column %d",
+			p.curToken.Type, p.curToken.Line, p.curToken.Column)
+		p.errors = append(p.errors, msg)
+		return parameters
 	}
 
-	// Check and handle closing parenthesis
-	if !p.curTokenIs(lexer.RPAREN) {
-		p.addError(fmt.Sprintf("Expected ',' or ')' after parameter, got %s", p.curToken.Type))
+	// Create first parameter
+	param := ast.Parameter{
+		Name: p.curToken.Literal,
+	}
+
+	// Check for type annotation for first parameter
+	if p.peekTokenIs(lexer.COLON) {
+		p.nextToken() // consume colon
+		p.nextToken() // move to type name
+
+		param.Type = &ast.TypeAnnotation{
+			TypeName: p.curToken.Literal,
+		}
+
+		// Move to the next token after type name
+		p.nextToken()
 	} else {
-		p.nextToken() // Skip the closing parenthesis, advancing to the next token (which could be a colon for return type or 'do')
+		// Type annotation is required
+		msg := fmt.Sprintf("Missing type annotation for parameter '%s' at line %d, column %d",
+			param.Name, p.curToken.Line, p.curToken.Column)
+		p.errors = append(p.errors, msg)
+
+		// Still need to advance token
+		p.nextToken()
 	}
+
+	parameters = append(parameters, param)
+
+	// Parse additional parameters
+	for p.curTokenIs(lexer.COMMA) {
+		p.nextToken() // move to parameter name
+
+		if !p.curTokenIs(lexer.IDENT) {
+			msg := fmt.Sprintf("Expected parameter name to be an identifier, got %s instead at line %d, column %d",
+				p.curToken.Type, p.curToken.Line, p.curToken.Column)
+			p.errors = append(p.errors, msg)
+			break
+		}
+
+		// Create parameter
+		nextParam := ast.Parameter{
+			Name: p.curToken.Literal,
+		}
+
+		// Check for type annotation
+		if p.peekTokenIs(lexer.COLON) {
+			p.nextToken() // consume colon
+			p.nextToken() // move to type name
+
+			nextParam.Type = &ast.TypeAnnotation{
+				TypeName: p.curToken.Literal,
+			}
+
+			// Move to the next token after type name
+			p.nextToken()
+		} else {
+			// Type annotation is required
+			msg := fmt.Sprintf("Missing type annotation for parameter '%s' at line %d, column %d",
+				nextParam.Name, p.curToken.Line, p.curToken.Column)
+			p.errors = append(p.errors, msg)
+
+			// Still need to advance token
+			p.nextToken()
+		}
+
+		parameters = append(parameters, nextParam)
+	}
+
+	// Expect closing parenthesis
+	if !p.curTokenIs(lexer.RPAREN) {
+		msg := fmt.Sprintf("Expected token to be ), got %s instead at line %d, column %d",
+			p.curToken.Type, p.curToken.Line, p.curToken.Column)
+		p.errors = append(p.errors, msg)
+	}
+
+	p.nextToken() // move past the closing parenthesis
 
 	return parameters
 }
 
 // parseTypeAnnotation parses a type annotation
 func (p *Parser) parseTypeAnnotation() *ast.TypeAnnotation {
+	// A type annotation must start with an identifier (the type name)
 	if !p.curTokenIs(lexer.IDENT) {
 		p.addError(fmt.Sprintf("Expected type name, got %s", p.curToken.Type))
-		return &ast.TypeAnnotation{TypeName: "any"} // Default type
+		return &ast.TypeAnnotation{TypeName: "any"} // Default to any type
 	}
 
-	typeName := p.curToken.Literal
-
-	// Create the type annotation
+	// Create the type annotation with the current token as the type name
 	typeAnnotation := &ast.TypeAnnotation{
-		TypeName: typeName,
+		TypeName: p.curToken.Literal,
 	}
 
-	// Move past the type name
-	p.nextToken()
+	// Check if there's a generic type parameter list starting with '<'
+	if p.peekTokenIs(lexer.LT) {
+		p.nextToken() // Advance to '<'
+		p.nextToken() // Advance to first type parameter
 
-	// Check for generic type parameters
-	if p.curTokenIs(lexer.LT) {
-		p.nextToken() // Skip '<'
-
+		// Initialize the type parameters slice
 		var typeParams []ast.Node
-		// Parse the first type parameter
-		typeParam := p.parseTypeAnnotation()
-		typeParams = append(typeParams, typeParam)
 
-		// Parse additional type parameters
-		for p.curTokenIs(lexer.COMMA) {
-			p.nextToken() // Skip ','
-			typeParam := p.parseTypeAnnotation()
-			typeParams = append(typeParams, typeParam)
+		// Parse type parameters until we hit the closing '>'
+		for !p.curTokenIs(lexer.GT) {
+			// Each type parameter must be an identifier
+			if !p.curTokenIs(lexer.IDENT) {
+				p.addError(fmt.Sprintf("Expected type parameter name, got %s", p.curToken.Type))
+				break
+			}
+
+			// Create a type annotation for this parameter and add it to the list
+			param := &ast.TypeAnnotation{TypeName: p.curToken.Literal}
+			typeParams = append(typeParams, param)
+
+			// Advance past the type parameter name
+			p.nextToken()
+
+			// If we have a comma, advance past it to the next parameter
+			if p.curTokenIs(lexer.COMMA) {
+				p.nextToken()
+			} else if !p.curTokenIs(lexer.GT) {
+				// If not a comma and not the closing '>', something is wrong
+				p.addError(fmt.Sprintf("Expected ',' or '>', got %s", p.curToken.Type))
+				break
+			}
 		}
 
+		// Set the type parameters on the annotation
 		typeAnnotation.TypeParams = typeParams
 
-		// Expect closing '>'
-		if !p.curTokenIs(lexer.GT) {
-			p.addError(fmt.Sprintf("Expected closing '>' after type parameters, got %s", p.curToken.Type))
-		} else {
-			p.nextToken() // Move past the closing '>' to the next token (which is usually a comma or closing parenthesis)
-		}
+		// Advance past the closing '>'
+		p.nextToken()
+	} else {
+		// No generic parameters, just advance past the type name
+		p.nextToken()
 	}
 
 	return typeAnnotation
@@ -338,9 +349,8 @@ func (p *Parser) parseTypeAnnotation() *ast.TypeAnnotation {
 func (p *Parser) parseClassDefinition() ast.Node {
 	// Current token is 'class'
 
-	// Move to class name
+	// Expect the next token to be the class name
 	if !p.expectPeek(lexer.IDENT) {
-		p.addError(fmt.Sprintf("Expected class name, got %s", p.peekToken.Type))
 		return nil
 	}
 
@@ -349,37 +359,142 @@ func (p *Parser) parseClassDefinition() ast.Node {
 	// Check for inheritance
 	var parentClass string
 	if p.peekTokenIs(lexer.INHERITS) {
-		p.nextToken() // Move to 'inherits'
+		p.nextToken() // Advance to 'inherits'
 
-		// Move to parent class name
+		// Expect parent class name
 		if !p.expectPeek(lexer.IDENT) {
-			p.addError(fmt.Sprintf("Expected parent class name, got %s", p.peekToken.Type))
 			return nil
 		}
 
 		parentClass = p.curToken.Literal
 	}
 
-	// Expect 'do' keyword
+	// Expect 'do' keyword to start the class body
 	if !p.expectPeek(lexer.DO) {
-		p.addError(fmt.Sprintf("Expected 'do' after class definition, got %s", p.peekToken.Type))
 		return nil
 	}
 
 	// Parse class body
-	body := p.parseBlockStatements(lexer.END)
+	p.nextToken() // Move past 'do'
 
-	// Ensure 'end' token is consumed
+	// Create a slice to hold the methods
+	methods := []ast.Node{}
+
+	// Parse methods until we reach 'end'
+	for !p.curTokenIs(lexer.END) && !p.curTokenIs(lexer.EOF) {
+		// Skip any non-method tokens
+		if !p.curTokenIs(lexer.FUNCTION) {
+			p.nextToken()
+			continue
+		}
+
+		// Parse method definition
+		method := p.parseFunctionDefinition()
+		if method != nil {
+			methods = append(methods, method)
+		}
+	}
+
+	// Expect 'end' to close the class definition
 	if !p.curTokenIs(lexer.END) {
-		p.addError(fmt.Sprintf("Expected 'end' to close class body, got %s", p.curToken.Type))
+		p.addError(fmt.Sprintf("Expected 'end' to close class definition, got %s instead at line %d, column %d",
+			p.curToken.Type, p.curToken.Line, p.curToken.Column))
 		return nil
 	}
 
-	p.nextToken() // Skip 'end'
+	// Consume the 'end' token
+	p.nextToken()
 
 	return &ast.ClassDef{
 		Name:    className,
 		Parent:  parentClass,
-		Methods: body.Statements,
+		Methods: methods,
+	}
+}
+
+// parseFunctionDefinition parses a function definition in the form:
+// def name(param1: type1, param2: type2, ...): returnType do
+//   statements...
+// end
+func (p *Parser) parseFunctionDefinition() ast.Node {
+	// Skip the 'def' keyword
+	p.nextToken()
+
+	// Check if the next token is an identifier (function name)
+	if !p.curTokenIs(lexer.IDENT) {
+		msg := fmt.Sprintf("Expected function name to be an identifier, got %s instead at line %d, column %d",
+			p.curToken.Type, p.curToken.Line, p.curToken.Column)
+		p.errors = append(p.errors, msg)
+		return nil
+	}
+
+	// Save the function name
+	funcName := p.curToken.Literal
+
+	// Move to the next token (should be opening parenthesis)
+	p.nextToken()
+
+	// Check for opening parenthesis
+	if !p.curTokenIs(lexer.LPAREN) {
+		msg := fmt.Sprintf("Expected '(' after function name, got %s instead at line %d, column %d",
+			p.curToken.Type, p.curToken.Line, p.curToken.Column)
+		p.errors = append(p.errors, msg)
+		return nil
+	}
+
+	// Parse function parameters
+	parameters := p.parseFunctionParameters()
+
+	// Check for return type annotation
+	var returnType *ast.TypeAnnotation
+	if p.curTokenIs(lexer.COLON) {
+		p.nextToken() // consume colon
+
+		if !p.curTokenIs(lexer.IDENT) {
+			msg := fmt.Sprintf("Expected return type to be an identifier, got %s instead at line %d, column %d",
+				p.curToken.Type, p.curToken.Line, p.curToken.Column)
+			p.errors = append(p.errors, msg)
+		} else {
+			returnType = &ast.TypeAnnotation{
+				TypeName: p.curToken.Literal,
+			}
+		}
+
+		p.nextToken() // move past the return type
+	} else {
+		// Return type annotation is required
+		msg := fmt.Sprintf("Missing return type annotation for function '%s' at line %d, column %d",
+			funcName, p.curToken.Line, p.curToken.Column)
+		p.errors = append(p.errors, msg)
+	}
+
+	// Check for 'do' keyword to start function body
+	if !p.curTokenIs(lexer.DO) {
+		msg := fmt.Sprintf("Expected 'do' after function declaration, got %s instead at line %d, column %d",
+			p.curToken.Type, p.curToken.Line, p.curToken.Column)
+		p.errors = append(p.errors, msg)
+		return nil
+	}
+
+	// Parse function body
+	p.nextToken() // move past 'do'
+	body := p.parseBlockStatements(lexer.END)
+
+	// Check for 'end' keyword to close function definition
+	if !p.curTokenIs(lexer.END) {
+		msg := fmt.Sprintf("Expected 'end' to close function definition, got %s instead at line %d, column %d",
+			p.curToken.Type, p.curToken.Line, p.curToken.Column)
+		p.errors = append(p.errors, msg)
+		return nil
+	}
+
+	// Consume the 'end' token
+	p.nextToken()
+
+	return &ast.FunctionDef{
+		Name:       funcName,
+		Parameters: parameters,
+		ReturnType: returnType,
+		Body:       body,
 	}
 }
