@@ -473,11 +473,12 @@ type Parser struct {
 	curToken  lexer.Token
 	peekToken lexer.Token
 	errors    []string
+	seenNonRequireStmt bool // Track if we've seen non-require statements
 }
 
 // New creates a new parser
 func New(l *lexer.Lexer) *Parser {
-	p := &Parser{l: l}
+	p := &Parser{l: l, seenNonRequireStmt: false}
 	// Read two tokens, so curToken and peekToken are both set
 	p.nextToken()
 	p.nextToken()
@@ -603,6 +604,7 @@ func (p *Parser) parseProgram() *Program {
 				expectingAssignment = false
 				lastIdent = ""
 				typeAnnotation = nil
+				p.seenNonRequireStmt = true // Mark that we've seen a non-require statement
 			}
 		} else if p.curToken.Type == lexer.IDENT && p.peekToken.Type == lexer.ASSIGN {
 			// Regular assignment without type annotation
@@ -629,6 +631,7 @@ func (p *Parser) parseProgram() *Program {
 				expectingTypeAnnotation = false
 				lastIdent = ""
 				typeAnnotation = nil
+				p.seenNonRequireStmt = true // Mark that we've seen a non-require statement
 			} else if expectingAssignment {
 				// Regular assignment without type annotation
 				assignment := &Assignment{
@@ -639,9 +642,15 @@ func (p *Parser) parseProgram() *Program {
 				fmt.Printf("DEBUG: parseProgram - added assignment: %s\n", assignment.String())
 				expectingAssignment = false
 				lastIdent = ""
+				p.seenNonRequireStmt = true // Mark that we've seen a non-require statement
 			} else {
 				program.Statements = append(program.Statements, stmt)
 				fmt.Printf("DEBUG: parseProgram - added statement: %T - %s\n", stmt, stmt.String())
+
+				// Only set the flag if this is not a require statement
+				if stmt.Type() != RequireStmtNode {
+					p.seenNonRequireStmt = true
+				}
 			}
 		} else if p.curToken.Type != lexer.EOF {
 			// If statement is nil and we're not at EOF, skip this token
@@ -2353,6 +2362,11 @@ func (r *RequireStmt) String() string {
 
 func (p *Parser) parseRequireStatement() Node {
 	fmt.Printf("DEBUG: parseRequireStatement - starting at token: %s\n", p.curToken.Type)
+
+	// Check if we've already seen non-require statements
+	if p.seenNonRequireStmt {
+		p.errors = append(p.errors, "Error: 'require' statements must appear at the top of the file")
+	}
 
 	// Skip 'require' keyword
 	p.nextToken()
