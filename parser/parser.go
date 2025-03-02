@@ -36,7 +36,6 @@ const (
 	ArrayLiteralNode   NodeType = "ArrayLiteral"
 	IndexExprNode    NodeType = "IndexExpr"
 	DotExprNode      NodeType = "DotExpr"
-	ImportStmtNode   NodeType = "ImportStmt"
 	RequireStmtNode  NodeType = "RequireStmt"
 
 	// Class-related node types
@@ -689,9 +688,6 @@ func (p *Parser) parseStatement() Node {
 		return p.parseForStatement()
 	case lexer.WHILE:
 		return p.parseWhileStatement()
-	case lexer.IMPORT:
-		fmt.Println("DEBUG: Detected IMPORT token in parseStatement, calling parseImportStatement")
-		return p.parseImportStatement()
 	case lexer.REQUIRE:
 		fmt.Println("DEBUG: Detected REQUIRE token in parseStatement, calling parseRequireStatement")
 		return p.parseRequireStatement()
@@ -2344,17 +2340,6 @@ func (p *Parser) peekTokenIs(t lexer.TokenType) bool {
 	return p.peekToken.Type == t
 }
 
-// ImportStmt represents an import statement
-type ImportStmt struct {
-	Packages []string
-	Path     string
-}
-
-func (i *ImportStmt) Type() NodeType { return ImportStmtNode }
-func (i *ImportStmt) String() string {
-	packages := strings.Join(i.Packages, ", ")
-	return fmt.Sprintf("ImportStmt([%s] from %s)", packages, i.Path)
-}
 
 // RequireStmt represents a require statement
 type RequireStmt struct {
@@ -2364,61 +2349,6 @@ type RequireStmt struct {
 func (r *RequireStmt) Type() NodeType { return RequireStmtNode }
 func (r *RequireStmt) String() string {
 	return fmt.Sprintf("RequireStmt(%s)", r.Path)
-}
-
-func (p *Parser) parseImportStatement() Node {
-	fmt.Printf("DEBUG: parseImportStatement - starting at token: %s\n", p.curToken.Type)
-
-	// Skip 'import' keyword
-	p.nextToken()
-
-	// Parse package names
-	packages := []string{}
-
-	// First package name
-	if p.curToken.Type != lexer.IDENT {
-		p.errors = append(p.errors, fmt.Sprintf("Expected package name after 'import', got %s", p.curToken.Type))
-		return nil
-	}
-
-	packages = append(packages, p.curToken.Literal)
-	p.nextToken()
-
-	// Additional package names separated by commas
-	for p.curToken.Type == lexer.COMMA {
-		p.nextToken() // Skip comma
-
-		if p.curToken.Type != lexer.IDENT {
-			p.errors = append(p.errors, fmt.Sprintf("Expected package name after comma, got %s", p.curToken.Type))
-			return nil
-		}
-
-		packages = append(packages, p.curToken.Literal)
-		p.nextToken()
-	}
-
-	// Check for 'from' keyword
-	if p.curToken.Type != lexer.FROM {
-		p.errors = append(p.errors, fmt.Sprintf("Expected 'from' after package list, got %s", p.curToken.Type))
-		return nil
-	}
-
-	// Skip 'from' keyword
-	p.nextToken()
-
-	// Parse path string
-	if p.curToken.Type != lexer.STRING {
-		p.errors = append(p.errors, fmt.Sprintf("Expected string path after 'from', got %s", p.curToken.Type))
-		return nil
-	}
-
-	path := p.curToken.Literal
-	p.nextToken() // Move past the string
-
-	return &ImportStmt{
-		Packages: packages,
-		Path: path,
-	}
 }
 
 func (p *Parser) parseRequireStatement() Node {

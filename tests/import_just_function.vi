@@ -1,6 +1,0 @@
-# Import add function from just_function.vi
-import add from "./just_function"
-
-# Test the imported function
-result = add(5, 3)
-puts "Result of add(5, 3): " + result

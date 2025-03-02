@@ -426,8 +426,6 @@ func (i *Interpreter) eval(node parser.Node, env *Environment) Value {
 		return i.evalIdentifier(node, env)
 	case *parser.PrintStmt:
 		return i.evalPrintStatement(node, env)
-	case *parser.ImportStmt:
-		return i.evalImportStatement(node, env)
 	case *parser.RequireStmt:
 		return i.evalRequireStatement(node, env)
 	case *parser.Assignment:
@@ -654,92 +652,6 @@ func (i *Interpreter) evalRequireStatement(node *parser.RequireStmt, env *Enviro
 
 	// For debugging, print all variables in the environment
 	fmt.Println("DEBUG: Environment contents after require:")
-	for name, value := range env.store {
-		fmt.Printf("DEBUG: %s = %s\n", name, value.Inspect())
-	}
-
-	return &NilValue{}
-}
-
-func (i *Interpreter) evalImportStatement(node *parser.ImportStmt, env *Environment) Value {
-	// Remove quotes from the path
-	path := strings.Trim(node.Path, "\"'")
-
-	// If the path doesn't have a .vi extension, add it
-	if !strings.HasSuffix(path, ".vi") {
-		path = path + ".vi"
-	}
-
-	// Handle relative paths
-	// If the path starts with ./ or ../, it's a relative path
-	// Otherwise, assume it's an absolute path or in the current directory
-	if strings.HasPrefix(path, "./") {
-		// Remove the ./ prefix and prepend the tests directory
-		path = "tests/" + path[2:]
-	} else if !strings.HasPrefix(path, "/") {
-		// If it's not an absolute path, assume it's in the tests directory
-		path = "tests/" + path
-	}
-
-	fmt.Printf("DEBUG: Importing file from path: %s\n", path)
-
-	// Read the file
-	source, err := ioutil.ReadFile(path)
-	if err != nil {
-		fmt.Printf("Error importing file: %s\n", err)
-		return &NilValue{}
-	}
-
-	// Create a lexer from the source code
-	l := lexer.New(string(source))
-
-	// Parse the input
-	program, errors := parser.Parse(l)
-
-	if len(errors) > 0 {
-		fmt.Println("Parser errors in imported file:")
-		for _, err := range errors {
-			fmt.Printf("\t%s\n", err)
-		}
-		return &NilValue{}
-	}
-
-	// Create a new environment for the imported file
-	importEnv := NewEnvironment()
-
-	// Evaluate the program
-	fmt.Println("DEBUG: Evaluating imported program")
-	result := i.evalProgram(program, importEnv)
-	fmt.Printf("DEBUG: Result of evaluating imported program: %s\n", result.Inspect())
-
-	// For debugging, print all variables in the import environment
-	fmt.Println("DEBUG: Import environment contents:")
-	for name, value := range importEnv.store {
-		fmt.Printf("DEBUG: %s = %s\n", name, value.Inspect())
-	}
-
-	// For debugging, print all functions in the import environment
-	fmt.Println("DEBUG: Import environment functions:")
-	for name, value := range importEnv.builtins {
-		fmt.Printf("DEBUG: %s = %s\n", name, value.Inspect())
-	}
-
-	// Import only the requested packages
-	for _, pkg := range node.Packages {
-		fmt.Printf("DEBUG: Looking for package '%s' in import environment\n", pkg)
-		if val, ok := importEnv.Get(pkg); ok {
-			fmt.Printf("DEBUG: Importing %s = %s\n", pkg, val.Inspect())
-			err := env.Set(pkg, val)
-			if err != nil {
-				fmt.Printf("ERROR: Failed to set %s in environment: %s\n", pkg, err)
-			}
-		} else {
-			fmt.Printf("Warning: Package '%s' not found in imported file\n", pkg)
-		}
-	}
-
-	// For debugging, print all variables in the current environment
-	fmt.Println("DEBUG: Current environment contents after import:")
 	for name, value := range env.store {
 		fmt.Printf("DEBUG: %s = %s\n", name, value.Inspect())
 	}

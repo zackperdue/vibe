@@ -159,7 +159,7 @@ numbers[2] = 10  # [1, 2, 10, 4, 5]
 
 ### Modules and Require
 
-Vibe supports a module system with the `require` statement to import code from other files:
+Vibe supports a module system with the `require` statement to include code from other files:
 
 ```ruby
 # In math_utils.vi
@@ -244,11 +244,11 @@ Current development priorities:
 
 ## Recent Changes
 
-- Added module system with `require` statement for importing code from other files
+- Added module system with `require` statement for including code from other files
 - Implemented string concatenation with various types
 - Created comprehensive test suite for edge cases
 - Fixed parser issues with nested function definitions
-- Improved error handling for file imports
+- Improved error handling for file loading
 
 ## Contributing
 
