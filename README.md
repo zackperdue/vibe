@@ -9,6 +9,8 @@ Vibe is a custom programming language implementation written in Go, featuring a 
 - Strong typing system (int, float, string, bool, arrays, functions)
 - Function definitions and calls with type annotations
 - Parentheses-free function calls for parameter-less functions
+- Optional return types for functions
+- Flexible function syntax (can omit both parentheses and return types)
 - Arrays and array operations
 - Control flow statements (if/else, while, for)
 - Module system with `require` statements for code reuse
@@ -130,6 +132,23 @@ puts greeting  # Outputs: Hello, World!
 # Traditional parentheses syntax also works
 greeting = hello()
 puts greeting  # Outputs: Hello, World!
+
+# Functions can also be defined without a return type
+def log_message do
+  puts "This is a log message"
+  # No return value needed
+end
+
+# Call function without return type
+log_message
+
+# Combining both features: no parentheses and no return type
+def simple_logger do
+  puts "Log entry created"
+end
+
+# Call the function without parentheses
+simple_logger
 ```
 
 ### Control Flow
