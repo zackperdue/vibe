@@ -43,11 +43,25 @@ func (p *Parser) parseExpression(precedence int) ast.Node {
 	case lexer.NIL:
 		leftExp = &ast.NilLiteral{}
 	case lexer.LPAREN:
-		p.nextToken() // Consume '('
-		leftExp = p.parseExpression(ast.LOWEST)
-		if !p.expectPeek(lexer.RPAREN) {
-			return nil
+		p.nextToken() // Skip the opening parenthesis
+		exp := p.parseExpression(ast.LOWEST)
+
+		// Check for closing parenthesis but don't advance past it yet
+		if !p.curTokenIs(lexer.RPAREN) {
+			if !p.peekTokenIs(lexer.RPAREN) {
+				p.addError(fmt.Sprintf("Expected next token to be %s, got %s instead at line %d, column %d",
+					lexer.RPAREN, p.peekToken.Type, p.peekToken.Line, p.peekToken.Column))
+				return nil
+			}
+			p.nextToken() // Move to the closing parenthesis
 		}
+
+		// Set leftExp to the parenthesized expression
+		leftExp = exp
+
+		// We're now at the closing parenthesis, but we don't advance past it yet
+		// The nextToken() call after the switch will advance us past the closing parenthesis
+		// Then the outer loop will handle any infix operators that follow
 	case lexer.LBRACKET:
 		fmt.Println("DEBUG parseExpression: found LBRACKET, calling parseArrayLiteral")
 		leftExp = p.parseArrayLiteral()
@@ -55,7 +69,8 @@ func (p *Parser) parseExpression(precedence int) ast.Node {
 		fmt.Printf("DEBUG parseExpression (after parseArrayLiteral): current token: %s (%s) at line %d, column %d, peek token: %s (%s) at line %d, column %d\n",
 			p.curToken.Type, p.curToken.Literal, p.curToken.Line, p.curToken.Column,
 			p.peekToken.Type, p.peekToken.Literal, p.peekToken.Line, p.peekToken.Column)
-		return leftExp
+		// Continue to the infix expression handling below
+		// Don't return here, let the outer loop handle any infix operators that follow
 	case lexer.MINUS, lexer.BANG:
 		operator := p.curToken.Literal
 		p.nextToken() // Consume the operator
@@ -84,7 +99,7 @@ func (p *Parser) parseExpression(precedence int) ast.Node {
 		}
 
 		switch p.curToken.Type {
-		case lexer.PLUS, lexer.MINUS, lexer.ASTERISK, lexer.SLASH, lexer.MODULO,
+		case lexer.PLUS, lexer.MINUS, lexer.ASTERISK, lexer.SLASH, lexer.MODULO, lexer.POWER,
 			lexer.EQ, lexer.NOT_EQ, lexer.LT, lexer.GT, lexer.LT_EQ, lexer.GT_EQ,
 			lexer.AND, lexer.OR:
 			leftExp = p.parseBinaryExpression(leftExp)
@@ -103,6 +118,7 @@ func (p *Parser) parseExpression(precedence int) ast.Node {
 	fmt.Printf("DEBUG parseExpression (end): current token: %s (%s) at line %d, column %d, peek token: %s (%s) at line %d, column %d\n",
 		p.curToken.Type, p.curToken.Literal, p.curToken.Line, p.curToken.Column,
 		p.peekToken.Type, p.peekToken.Literal, p.peekToken.Line, p.peekToken.Column)
+
 	return leftExp
 }
 
@@ -199,6 +215,13 @@ func (p *Parser) parseCallExpression(function ast.Node) ast.Node {
 	if p.curTokenIs(lexer.RPAREN) {
 		fmt.Println("DEBUG parseCallExpression: empty argument list")
 		p.nextToken() // Skip closing parenthesis
+
+		// Check if the next token is an infix operator
+		if isInfixOperator(p.curToken.Type) {
+			// If it is, parse the infix expression
+			return p.parseBinaryExpression(callExpr)
+		}
+
 		return callExpr
 	}
 
@@ -229,12 +252,27 @@ func (p *Parser) parseCallExpression(function ast.Node) ast.Node {
 		}
 	}
 
+	// Check if the next token after the closing parenthesis is an infix operator
+	if isInfixOperator(p.peekToken.Type) {
+		// Skip past the closing parenthesis
+		p.nextToken()
+
+		// Parse the infix expression
+		return p.parseBinaryExpression(callExpr)
+	}
+
 	// Skip past the closing parenthesis
 	p.nextToken()
 
 	fmt.Printf("DEBUG parseCallExpression: after closing parenthesis: current token: %s (%s) at line %d, column %d, peek token: %s (%s) at line %d, column %d\n",
 		p.curToken.Type, p.curToken.Literal, p.curToken.Line, p.curToken.Column,
 		p.peekToken.Type, p.peekToken.Literal, p.peekToken.Line, p.peekToken.Column)
+
+	// Check if the current token is an infix operator
+	if isInfixOperator(p.curToken.Type) {
+		// If it is, parse the infix expression
+		return p.parseBinaryExpression(callExpr)
+	}
 
 	return callExpr
 }
