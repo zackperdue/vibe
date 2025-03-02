@@ -736,20 +736,30 @@ func (p *Parser) parseFunctionDefinition() Node {
 
 	// Parameters
 	p.nextToken()
-	if p.curToken.Type != lexer.LPAREN {
-		p.errors = append(p.errors, fmt.Sprintf("Expected '(' after function name, got %s", p.curToken.Type))
-		return nil
-	}
 
-	funcDef.Parameters = p.parseFunctionParameters()
-
-	// Check for return type annotation with : syntax
+	// Handle function definition without parentheses (no parameters)
 	if p.curToken.Type == lexer.COLON {
+		// Function has no parameters and uses the no-parentheses syntax
+		funcDef.Parameters = []Parameter{}
+
+		// Parse return type
 		p.nextToken()
 		funcDef.ReturnType = p.parseTypeAnnotation()
+	} else if p.curToken.Type == lexer.LPAREN {
+		// Traditional function with parameters in parentheses
+		funcDef.Parameters = p.parseFunctionParameters()
+
+		// Check for return type annotation with : syntax
+		if p.curToken.Type == lexer.COLON {
+			p.nextToken()
+			funcDef.ReturnType = p.parseTypeAnnotation()
+		} else {
+			// Default return type is "int"
+			funcDef.ReturnType = &TypeAnnotation{TypeName: "int"}
+		}
 	} else {
-		// Default return type is "int"
-		funcDef.ReturnType = &TypeAnnotation{TypeName: "int"}
+		p.errors = append(p.errors, fmt.Sprintf("Expected '(' or ':' after function name, got %s", p.curToken.Type))
+		return nil
 	}
 
 	// Check for 'do' keyword
@@ -1418,6 +1428,27 @@ func (p *Parser) parseExpression(precedence int) Node {
 					p.errors = append(p.errors, fmt.Sprintf("Expected '>' after type parameter, got %s", p.curToken.Type))
 					return nil
 				}
+			}
+		}
+
+		// Enable function calls without parentheses for functions with no parameters
+		// Only do this if we're not in a context where the identifier might be used for something else
+		// like an assignment target, a property name, etc.
+		// We can infer this is a function call if we're at the end of an expression
+		if !isInfixOperator(p.peekToken.Type) &&
+		   p.peekToken.Type != lexer.LPAREN &&
+		   p.peekToken.Type != lexer.LBRACKET &&
+		   p.peekToken.Type != lexer.DOT &&
+		   p.peekToken.Type != lexer.ASSIGN &&
+		   p.peekToken.Type != lexer.PLUS_ASSIGN &&
+		   p.peekToken.Type != lexer.MINUS_ASSIGN &&
+		   p.peekToken.Type != lexer.MUL_ASSIGN &&
+		   p.peekToken.Type != lexer.DIV_ASSIGN &&
+		   p.peekToken.Type != lexer.MOD_ASSIGN {
+			// Create a CallExpr with empty args
+			leftExp = &CallExpr{
+				Function: leftExp,
+				Args:     []Node{},
 			}
 		}
 
@@ -2310,29 +2341,68 @@ func (p *Parser) parseSuperCall() Node {
 
 // parseBinaryExpression parses a binary expression
 func (p *Parser) parseBinaryExpression(left Node) Node {
+	// Save references to the current token (operator token)
+	operator := p.curToken.Literal
 	fmt.Printf("DEBUG: parseBinaryExpression - at token: %s, literal: %s\n", p.curToken.Type, p.curToken.Literal)
 	fmt.Printf("DEBUG: parseBinaryExpression - left: %s\n", left.String())
+	fmt.Printf("DEBUG: parseBinaryExpression - operator: %s, precedence: %d\n", operator, p.curPrecedence())
 
-	// The current token is the operator
-	operator := p.curToken.Literal
+	// Remember precedence of the operator
 	precedence := p.curPrecedence()
-	fmt.Printf("DEBUG: parseBinaryExpression - operator: %s, precedence: %d\n", operator, precedence)
 
-	// Advance past the operator
+	// Skip the operator token
 	p.nextToken()
 	fmt.Printf("DEBUG: parseBinaryExpression - now at token: %s, literal: %s\n", p.curToken.Type, p.curToken.Literal)
 
-	// Parse the right side of the expression
-	right := p.parseExpression(precedence)
+	// Parse the right-hand-side expression
+	var right Node
+
+	// Handle the case where an identifier might be automatically converted to a function call
+	// without parentheses. We need to check if it's an identifier before automatic conversion.
+	if p.curToken.Type == lexer.IDENT {
+		// Create an identifier node first
+		identNode := &Identifier{Name: p.curToken.Literal}
+		p.nextToken() // Consume the identifier
+
+		// Check if it should be treated as a function call without parentheses
+		if !isInfixOperator(p.curToken.Type) &&
+		   p.curToken.Type != lexer.LPAREN &&
+		   p.curToken.Type != lexer.LBRACKET &&
+		   p.curToken.Type != lexer.DOT &&
+		   p.curToken.Type != lexer.ASSIGN &&
+		   p.curToken.Type != lexer.PLUS_ASSIGN &&
+		   p.curToken.Type != lexer.MINUS_ASSIGN &&
+		   p.curToken.Type != lexer.MUL_ASSIGN &&
+		   p.curToken.Type != lexer.DIV_ASSIGN &&
+		   p.curToken.Type != lexer.MOD_ASSIGN {
+			// Create a CallExpr with empty args
+			right = &CallExpr{
+				Function: identNode,
+				Args:     []Node{},
+			}
+		} else {
+			// Just use it as a regular identifier
+			right = identNode
+		}
+	} else {
+		// Regular expression parsing
+		right = p.parseExpression(precedence)
+	}
+
+	if right == nil {
+		return nil
+	}
+
 	fmt.Printf("DEBUG: parseBinaryExpression - right: %s\n", right.String())
 
-	// Create and return a binary expression node
+	// Create and return a binary expression
 	expr := &BinaryExpr{
 		Left:     left,
 		Operator: operator,
 		Right:    right,
 	}
 	fmt.Printf("DEBUG: parseBinaryExpression - created expression: %s\n", expr.String())
+
 	return expr
 }
 
