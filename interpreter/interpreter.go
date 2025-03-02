@@ -2,9 +2,13 @@ package interpreter
 
 import (
 	"fmt"
+	"io/ioutil"
 	"math"
+	"os"
 	"strconv"
+	"strings"
 
+	"github.com/example/vibe/lexer"
 	"github.com/example/vibe/parser"
 	"github.com/example/vibe/types"
 )
@@ -422,6 +426,8 @@ func (i *Interpreter) eval(node parser.Node, env *Environment) Value {
 		return i.evalIdentifier(node, env)
 	case *parser.PrintStmt:
 		return i.evalPrintStatement(node, env)
+	case *parser.RequireStmt:
+		return i.evalRequireStatement(node, env)
 	case *parser.Assignment:
 		return i.evalAssignment(node, env)
 	case *parser.VariableDecl:
@@ -588,6 +594,68 @@ func (i *Interpreter) evalIdentifier(node *parser.Identifier, env *Environment) 
 func (i *Interpreter) evalPrintStatement(node *parser.PrintStmt, env *Environment) Value {
 	value := i.eval(node.Value, env)
 	fmt.Println(value.Inspect())
+	return value
+}
+
+func (i *Interpreter) evalRequireStatement(node *parser.RequireStmt, env *Environment) Value {
+	// Remove quotes from the path
+	path := strings.Trim(node.Path, "\"'")
+
+	// If the path doesn't have a .vi extension, add it
+	if !strings.HasSuffix(path, ".vi") {
+		path = path + ".vi"
+	}
+
+	// Handle relative paths
+	// If the path starts with ./ or ../, it's a relative path
+	// Otherwise, assume it's an absolute path or in the current directory
+	if strings.HasPrefix(path, "./") {
+		// Remove the ./ prefix and prepend the tests directory
+		path = "tests/" + path[2:]
+	} else if !strings.HasPrefix(path, "/") {
+		// If it's not an absolute path, assume it's in the tests directory
+		path = "tests/" + path
+	}
+
+	fmt.Printf("DEBUG: Requiring file from path: %s\n", path)
+
+	// Read the file
+	source, err := ioutil.ReadFile(path)
+	if err != nil {
+		errMsg := fmt.Sprintf("Error requiring file: %s", err)
+		fmt.Println(errMsg)
+		// Return a special error value that will cause the interpreter to stop execution
+		os.Exit(1) // This will terminate the program immediately
+		return &StringValue{Value: errMsg}
+	}
+
+	// Create a lexer from the source code
+	l := lexer.New(string(source))
+
+	// Parse the input
+	program, errors := parser.Parse(l)
+
+	if len(errors) > 0 {
+		fmt.Println("Parser errors in required file (ignoring for now):")
+		for _, err := range errors {
+			fmt.Printf("\t%s\n", err)
+		}
+		// For now, we'll continue even if there are parser errors
+		// This is just for testing purposes
+	}
+
+	// Evaluate the program in the current environment
+	// This will make all definitions from the required file available in the current scope
+	fmt.Println("DEBUG: Evaluating required program")
+	result := i.evalProgram(program, env)
+	fmt.Printf("DEBUG: Result of evaluating required program: %s\n", result.Inspect())
+
+	// For debugging, print all variables in the environment
+	fmt.Println("DEBUG: Environment contents after require:")
+	for name, value := range env.store {
+		fmt.Printf("DEBUG: %s = %s\n", name, value.Inspect())
+	}
+
 	return &NilValue{}
 }
 
@@ -892,6 +960,18 @@ func (i *Interpreter) evalBinaryExpression(node *parser.BinaryExpr, env *Environ
 		return evalNumberBinaryExpression(node.Operator, left, right)
 	case left.Type() == "STRING" && right.Type() == "STRING":
 		return evalStringBinaryExpression(node.Operator, left, right)
+	case left.Type() == "STRING" && (right.Type() == "INTEGER" || right.Type() == "FLOAT" || right.Type() == "BOOLEAN"):
+		// Convert right to string and concatenate
+		if node.Operator == "+" {
+			return &StringValue{Value: left.(*StringValue).Value + right.Inspect()}
+		}
+		return &StringValue{Value: fmt.Sprintf("Type error: unsupported operator %s for types %s and %s", node.Operator, left.Type(), right.Type())}
+	case (left.Type() == "INTEGER" || left.Type() == "FLOAT" || left.Type() == "BOOLEAN") && right.Type() == "STRING":
+		// Convert left to string and concatenate
+		if node.Operator == "+" {
+			return &StringValue{Value: left.Inspect() + right.(*StringValue).Value}
+		}
+		return &StringValue{Value: fmt.Sprintf("Type error: unsupported operator %s for types %s and %s", node.Operator, left.Type(), right.Type())}
 	case node.Operator == "==":
 		return &BooleanValue{Value: left.Inspect() == right.Inspect()}
 	case node.Operator == "!=":
@@ -1102,4 +1182,34 @@ func (i *Interpreter) evalMethodCall(node *parser.MethodCall, env *Environment) 
 
 	// Otherwise, it should be a user-defined method, but we haven't implemented this yet
 	return &StringValue{Value: "User-defined methods not yet supported"}
+}
+
+// toString converts any value to a string representation
+func toString(val Value) string {
+	if val == nil {
+		return "nil"
+	}
+
+	switch v := val.(type) {
+	case *StringValue:
+		return v.Value
+	case *IntegerValue:
+		return strconv.Itoa(v.Value)
+	case *FloatValue:
+		return strconv.FormatFloat(v.Value, 'f', -1, 64)
+	case *BooleanValue:
+		return strconv.FormatBool(v.Value)
+	case *ArrayValue:
+		return fmt.Sprintf("%v", v.Inspect())
+	case *FunctionValue:
+		return fmt.Sprintf("function %s", v.Name)
+	case *ClassValue:
+		return fmt.Sprintf("class %s", v.Name)
+	case *ObjectValue:
+		return fmt.Sprintf("instance of %s", v.Class.Name)
+	case *NilValue:
+		return "nil"
+	default:
+		return fmt.Sprintf("%v", val.Inspect())
+	}
 }

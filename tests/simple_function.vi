@@ -1,0 +1,6 @@
+# This is a simple module file with a function
+
+# Define a function to be required
+def add(a, b) do
+  return a + b
+end

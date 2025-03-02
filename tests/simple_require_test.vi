@@ -1,0 +1,7 @@
+# This is a test file for testing require functionality
+
+# Require the simple module
+require "./simple_module"
+
+# Test the required variable
+puts "Required message: " + message

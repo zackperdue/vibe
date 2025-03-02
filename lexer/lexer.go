@@ -77,6 +77,7 @@ const (
 	PRINT    = "PRINT"
 	END      = "END"
 	DO       = "DO"
+	REQUIRE  = "REQUIRE"
 
 	// Class-related keywords
 	CLASS    = "CLASS"
@@ -112,6 +113,7 @@ var keywords = map[string]TokenType{
 	"puts":     PRINT,
 	"end":      END,
 	"do":       DO,
+	"require":  REQUIRE,
 
 	// Class-related keywords
 	"class":    CLASS,

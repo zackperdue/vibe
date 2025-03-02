@@ -10,6 +10,7 @@ Vibe is a custom programming language implementation written in Go, featuring a 
 - Function definitions and calls with type annotations
 - Arrays and array operations
 - Control flow statements (if/else, while, for)
+- Module system with `require` statements for code reuse
 - Variables and assignment
 - Arithmetic and logical operations
 - Interactive REPL mode
@@ -66,6 +67,16 @@ Start the interactive REPL to test code snippets:
 ./vibe -i
 # or
 go run main.go -i
+```
+
+### Debug Mode
+
+Run a program with debug output to see parsing and execution details:
+
+```bash
+./vibe -d path/to/program.vi
+# or
+go run main.go -d path/to/program.vi
 ```
 
 ## Language Syntax
@@ -146,6 +157,32 @@ first = numbers[0]  # 1
 numbers[2] = 10  # [1, 2, 10, 4, 5]
 ```
 
+### Modules and Require
+
+Vibe supports a module system with the `require` statement to include code from other files:
+
+```ruby
+# In math_utils.vi
+def add(a, b) do
+  return a + b
+end
+
+def multiply(a, b) do
+  return a * b
+end
+```
+
+```ruby
+# In main.vi
+require "./math_utils"
+
+result = add(5, 3)
+puts "Result of add: " + result
+
+product = multiply(4, 7)
+puts "Result of multiply: " + product
+```
+
 ## Examples
 
 Check out the example programs in the `examples/` directory:
@@ -155,6 +192,22 @@ Check out the example programs in the `examples/` directory:
 - `minimal_fib.vi` - Minimal Fibonacci implementation
 - `typed_program.vi` - Example demonstrating the type system
 - `for_loop.vi` - Examples of for loops
+
+## Test Suite
+
+The `tests/` directory contains test files for various language features:
+
+- Basic feature tests checking syntax and semantics
+- Edge case tests for handling numeric operations, complex expressions
+- Module tests for the `require` functionality
+- Error handling tests
+
+Run the test suite with:
+
+```bash
+./run_tests.sh    # Run all tests
+./run_go_tests.sh # Run Go unit tests
+```
 
 ## Project Structure
 
@@ -167,13 +220,6 @@ Check out the example programs in the `examples/` directory:
 - `tests/` - Test suite
 
 ## Development
-
-### Running Tests
-
-```bash
-./run_tests.sh    # Run all tests
-./run_go_tests.sh # Run Go unit tests
-```
 
 ### Development Workflow
 
@@ -194,7 +240,15 @@ Current development priorities:
 2. Improving error messages and debugging
 3. Optimizing performance
 4. Adding more complex data structures
-5. Implementing modules/imports
+5. Enhancing the module system with better error handling
+
+## Recent Changes
+
+- Added module system with `require` statement for including code from other files
+- Implemented string concatenation with various types
+- Created comprehensive test suite for edge cases
+- Fixed parser issues with nested function definitions
+- Improved error handling for file loading
 
 ## Contributing
 
