@@ -1,0 +1,45 @@
+# Test for function definitions without parameters and without a return type
+
+# Function without parameters and without a return type
+def simple_action do
+  puts "Simple action executed!"
+end
+
+# Function without parameters but with explicit return type
+def action_with_return_type: string do
+  puts "Action with return type executed!"
+  return "completed"
+end
+
+# Function without parameters that calls another no-params function
+def call_simple do
+  puts "Calling simple action..."
+  simple_action
+  puts "Simple action call completed."
+end
+
+# Main function to run all tests
+def main: int do
+  puts "Testing functions without return types:"
+
+  # Call function without params and without return type
+  puts "Calling simple_action:"
+  simple_action
+
+  # Call again with parentheses (should work too)
+  puts "Calling simple_action():"
+  simple_action()
+
+  # Call with return type
+  result = action_with_return_type
+  puts "Result from action_with_return_type: " + result
+
+  # Test nested function calls
+  puts "Testing call_simple function:"
+  call_simple
+
+  return 0
+end
+
+# Run the tests
+main
