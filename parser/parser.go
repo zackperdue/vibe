@@ -36,6 +36,7 @@ const (
 	ArrayLiteralNode   NodeType = "ArrayLiteral"
 	IndexExprNode    NodeType = "IndexExpr"
 	DotExprNode      NodeType = "DotExpr"
+	RequireStmtNode  NodeType = "RequireStmt"
 
 	// Class-related node types
 	ClassDefNode      NodeType = "ClassDef"      // For class definitions
@@ -472,11 +473,12 @@ type Parser struct {
 	curToken  lexer.Token
 	peekToken lexer.Token
 	errors    []string
+	seenNonRequireStmt bool // Track if we've seen non-require statements
 }
 
 // New creates a new parser
 func New(l *lexer.Lexer) *Parser {
-	p := &Parser{l: l}
+	p := &Parser{l: l, seenNonRequireStmt: false}
 	// Read two tokens, so curToken and peekToken are both set
 	p.nextToken()
 	p.nextToken()
@@ -602,6 +604,7 @@ func (p *Parser) parseProgram() *Program {
 				expectingAssignment = false
 				lastIdent = ""
 				typeAnnotation = nil
+				p.seenNonRequireStmt = true // Mark that we've seen a non-require statement
 			}
 		} else if p.curToken.Type == lexer.IDENT && p.peekToken.Type == lexer.ASSIGN {
 			// Regular assignment without type annotation
@@ -628,6 +631,7 @@ func (p *Parser) parseProgram() *Program {
 				expectingTypeAnnotation = false
 				lastIdent = ""
 				typeAnnotation = nil
+				p.seenNonRequireStmt = true // Mark that we've seen a non-require statement
 			} else if expectingAssignment {
 				// Regular assignment without type annotation
 				assignment := &Assignment{
@@ -638,9 +642,15 @@ func (p *Parser) parseProgram() *Program {
 				fmt.Printf("DEBUG: parseProgram - added assignment: %s\n", assignment.String())
 				expectingAssignment = false
 				lastIdent = ""
+				p.seenNonRequireStmt = true // Mark that we've seen a non-require statement
 			} else {
 				program.Statements = append(program.Statements, stmt)
 				fmt.Printf("DEBUG: parseProgram - added statement: %T - %s\n", stmt, stmt.String())
+
+				// Only set the flag if this is not a require statement
+				if stmt.Type() != RequireStmtNode {
+					p.seenNonRequireStmt = true
+				}
 			}
 		} else if p.curToken.Type != lexer.EOF {
 			// If statement is nil and we're not at EOF, skip this token
@@ -676,6 +686,7 @@ func (p *Parser) parseStatement() Node {
 	case lexer.RETURN:
 		return p.parseReturnStatement()
 	case lexer.PRINT:
+		fmt.Printf("DEBUG: parseStatement - detected print token, calling parsePrintStatement\n")
 		return p.parsePrintStatement()
 	case lexer.IF:
 		return p.parseIfStatement()
@@ -686,10 +697,12 @@ func (p *Parser) parseStatement() Node {
 		return p.parseForStatement()
 	case lexer.WHILE:
 		return p.parseWhileStatement()
+	case lexer.REQUIRE:
+		fmt.Println("DEBUG: Detected REQUIRE token in parseStatement, calling parseRequireStatement")
+		return p.parseRequireStatement()
 	case lexer.CLASS:
-		// TODO: Uncomment when parseClassDefinition is implemented
-		// return p.parseClassDefinition("", "")
-		return nil
+		fmt.Println("DEBUG: Detected CLASS token in parseStatement, calling parseClassDefinition")
+		return p.parseClassDefinition()
 	case lexer.SUPER:
 		return p.parseSuperCall()
 	case lexer.IN, lexer.DO, lexer.END:
@@ -2404,4 +2417,119 @@ func (p *Parser) expectPeek(t lexer.TokenType) bool {
 
 func (p *Parser) peekTokenIs(t lexer.TokenType) bool {
 	return p.peekToken.Type == t
+}
+
+
+// RequireStmt represents a require statement
+type RequireStmt struct {
+	Path string
+}
+
+func (r *RequireStmt) Type() NodeType { return RequireStmtNode }
+func (r *RequireStmt) String() string {
+	return fmt.Sprintf("RequireStmt(%s)", r.Path)
+}
+
+func (p *Parser) parseRequireStatement() Node {
+	fmt.Printf("DEBUG: parseRequireStatement - starting at token: %s\n", p.curToken.Type)
+
+	// Check if we've already seen non-require statements
+	if p.seenNonRequireStmt {
+		p.errors = append(p.errors, "Error: 'require' statements must appear at the top of the file")
+	}
+
+	// Skip 'require' keyword
+	p.nextToken()
+
+	// Parse path string
+	if p.curToken.Type != lexer.STRING {
+		p.errors = append(p.errors, fmt.Sprintf("Expected string path after 'require', got %s", p.curToken.Type))
+		return nil
+	}
+
+	path := p.curToken.Literal
+	p.nextToken() // Move past the string
+
+	return &RequireStmt{
+		Path: path,
+	}
+}
+
+func (p *Parser) parseClassDefinition() Node {
+	fmt.Printf("DEBUG: parseClassDefinition - starting at token: %s\n", p.curToken.Type)
+
+	// Skip 'class' keyword
+	p.nextToken()
+
+	// Get class name
+	if p.curToken.Type != lexer.IDENT {
+		p.errors = append(p.errors, fmt.Sprintf("Expected class name after 'class', got %s", p.curToken.Type))
+		return nil
+	}
+
+	className := p.curToken.Literal
+	p.nextToken()
+
+	// Check for inheritance
+	var parentClass string
+	if p.curToken.Type == lexer.INHERITS {
+		p.nextToken() // Skip 'inherits'
+
+		if p.curToken.Type != lexer.IDENT {
+			p.errors = append(p.errors, fmt.Sprintf("Expected parent class name after 'inherits', got %s", p.curToken.Type))
+			return nil
+		}
+
+		parentClass = p.curToken.Literal
+		p.nextToken()
+	}
+
+	// Check for 'do' keyword
+	if p.curToken.Type != lexer.DO {
+		p.errors = append(p.errors, fmt.Sprintf("Expected 'do' after class declaration, got %s", p.curToken.Type))
+		return nil
+	}
+
+	// Skip 'do' keyword
+	p.nextToken()
+
+	// Parse methods and instance variables
+	methods := []Node{}
+
+	// Parse methods and instance variables
+	for p.curToken.Type != lexer.END && p.curToken.Type != lexer.EOF {
+		var stmt Node
+
+		if p.curToken.Type == lexer.FUNCTION {
+			// Parse method definition
+			stmt = p.parseFunctionDefinition()
+			if stmt != nil {
+				methods = append(methods, stmt)
+			}
+		} else if p.curToken.Type == lexer.AT {
+			// Parse instance variable
+			stmt = p.parseInstanceVariable()
+		} else {
+			// Parse other statements
+			stmt = p.parseStatement()
+		}
+
+		// Move to the next token if not at the end
+		if p.curToken.Type != lexer.END && p.curToken.Type != lexer.EOF {
+			p.nextToken()
+		}
+	}
+
+	// Skip the 'end' token
+	if p.curToken.Type == lexer.END {
+		p.nextToken()
+	} else {
+		p.errors = append(p.errors, "Expected 'end' to close class definition")
+	}
+
+	return &ClassDef{
+		Name:    className,
+		Parent:  parentClass,
+		Methods: methods,
+	}
 }

@@ -1,0 +1,16 @@
+# This is a test file for testing require functionality
+
+# Require the test_require.vi file
+require "./test_require"
+
+# Test the required function
+result = add(5, 3)
+puts "Result of add(5, 3): " + result
+
+# Test the required variable
+puts "Required message: " + message
+
+# Test the required class
+greeter = new Greeter("World")
+greeting = greeter.greet()
+puts greeting

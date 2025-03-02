@@ -1,0 +1,11 @@
+# This is a test file with a require statement in the middle
+
+# Define some variables
+x = 5
+y = 10
+
+# This require should cause an error because it's in the middle of the file
+require "./simple_module"
+
+# Use the variable from the required file
+puts "Message: " + message
