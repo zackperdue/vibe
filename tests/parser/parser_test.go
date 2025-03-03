@@ -237,8 +237,8 @@ func TestArrayLiteralParsing(t *testing.T) {
 		{`[]`, []string{}},
 		{`[1]`, []string{"1"}},
 		{`[1, 2]`, []string{"1", "2"}},
-		{`["a", "b", "c"]`, []string{"a", "b", "c"}},
-		{`[1, "a", true]`, []string{"1", "a", "true"}},
+		{`["a", "b", "c"]`, []string{`String("a")`, `String("b")`, `String("c")`}},
+		{`[1, "a", true]`, []string{"1", `String("a")`, "Boolean(true)"}},
 		{`[1,]`, []string{"1"}}, // trailing comma
 	}
 
