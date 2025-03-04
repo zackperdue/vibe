@@ -52,7 +52,7 @@ func (a *ArrayLiteral) String() string {
 	for _, el := range a.Elements {
 		elements = append(elements, el.String())
 	}
-	return fmt.Sprintf("Array[%s]", strings.Join(elements, ", "))
+	return fmt.Sprintf("[%s]", strings.Join(elements, ", "))
 }
 
 // Identifier represents an identifier in the AST

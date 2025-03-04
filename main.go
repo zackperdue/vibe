@@ -7,9 +7,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/example/vibe/interpreter"
-	"github.com/example/vibe/lexer"
-	"github.com/example/vibe/parser"
+	"github.com/vibe-lang/vibe/interpreter"
+	"github.com/vibe-lang/vibe/lexer"
+	"github.com/vibe-lang/vibe/parser"
 )
 
 var debug bool = false

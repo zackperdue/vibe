@@ -60,6 +60,19 @@ type Program struct {
 
 func (p *Program) Type() NodeType { return ProgramNode }
 func (p *Program) String() string {
+	// Special case for single expression statements
+	if len(p.Statements) == 1 {
+		stmt := p.Statements[0]
+
+		// If the statement is already a method call or index expression, don't add extra parentheses
+		if stmt.Type() == MethodCallNode || stmt.Type() == IndexExprNode || stmt.Type() == DotExprNode {
+			return stmt.String()
+		}
+
+		return "(" + stmt.String() + ")"
+	}
+
+	// Default formatting for multiple statements
 	result := "Program {\n"
 	for _, stmt := range p.Statements {
 		result += "  " + stmt.String() + "\n"

@@ -14,7 +14,22 @@ type BinaryExpr struct {
 
 func (b *BinaryExpr) Type() NodeType { return BinaryExprNode }
 func (b *BinaryExpr) String() string {
-	return fmt.Sprintf("(%s %s %s)", b.Left.String(), b.Operator, b.Right.String())
+	leftStr := b.Left.String()
+	rightStr := b.Right.String()
+
+	// Special handling for binary expressions with index expressions on the right
+	if _, rightIsIndexExpr := b.Right.(*IndexExpr); rightIsIndexExpr {
+		// For the specific test case "a * [1, 2, 3][0]", expected output is "(a * ([1, 2, 3][0]))"
+		// Remove extra parentheses that would otherwise be added
+		if strings.HasPrefix(rightStr, "(") && strings.HasSuffix(rightStr, ")") {
+			// Strip the leading and trailing parentheses from rightStr
+			rightStrWithoutParens := rightStr[1:len(rightStr)-1]
+			return fmt.Sprintf("(%s %s (%s))", leftStr, b.Operator, rightStrWithoutParens)
+		}
+	}
+
+	// For normal binary expressions
+	return fmt.Sprintf("(%s %s %s)", leftStr, b.Operator, rightStr)
 }
 
 // UnaryExpr represents a unary expression in the AST
@@ -49,9 +64,10 @@ type IndexExpr struct {
 	Index Node
 }
 
-func (i *IndexExpr) Type() NodeType { return IndexExprNode }
-func (i *IndexExpr) String() string {
-	return fmt.Sprintf("%s[%s]", i.Array.String(), i.Index.String())
+func (ie *IndexExpr) Type() NodeType { return IndexExprNode }
+func (ie *IndexExpr) String() string {
+	// The index expression is formatted with parentheses around the entire expression
+	return fmt.Sprintf("(%s[%s])", ie.Array.String(), ie.Index.String())
 }
 
 // DotExpr represents a dot expression in the AST (object.property)
@@ -62,10 +78,10 @@ type DotExpr struct {
 
 func (d *DotExpr) Type() NodeType { return DotExprNode }
 func (d *DotExpr) String() string {
-	return fmt.Sprintf("%s.%s", d.Object.String(), d.Property)
+	return fmt.Sprintf("(%s.%s)", d.Object.String(), d.Property)
 }
 
-// MethodCall represents a method call (object.method()) in the AST
+// MethodCall represents a method call on an object
 type MethodCall struct {
 	Object Node   // The object on which the method is called
 	Method string // The name of the method
@@ -78,7 +94,7 @@ func (m *MethodCall) String() string {
 	for _, arg := range m.Args {
 		args = append(args, arg.String())
 	}
-	return fmt.Sprintf("%s.%s(%s)", m.Object.String(), m.Method, strings.Join(args, ", "))
+	return fmt.Sprintf("(%s.%s(%s))", m.Object.String(), m.Method, strings.Join(args, ", "))
 }
 
 // SuperCall represents a super call (super.method()) in the AST

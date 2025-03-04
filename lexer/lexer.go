@@ -266,12 +266,29 @@ func (l *Lexer) readNumber() Token {
 // encounters the closing quote or EOF
 func (l *Lexer) readString() string {
 	l.readChar() // Skip the opening quote
-	position := l.position
+	var result string
 
 	for l.ch != '"' && l.ch != 0 {
 		// Handle escape sequences
-		if l.ch == '\\' && l.peekChar() == '"' {
+		if l.ch == '\\' {
 			l.readChar() // Skip the backslash
+			switch l.ch {
+			case '"':
+				result += string('"')
+			case 'n':
+				result += string('\n')
+			case 't':
+				result += string('\t')
+			case 'r':
+				result += string('\r')
+			case '\\':
+				result += string('\\')
+			default:
+				// Just add the character after the backslash
+				result += string(l.ch)
+			}
+		} else {
+			result += string(l.ch)
 		}
 		l.readChar()
 	}
@@ -279,10 +296,9 @@ func (l *Lexer) readString() string {
 	// If we reached EOF without closing the string
 	if l.ch == 0 {
 		l.addError("Unterminated string literal")
-		return l.input[position:l.position]
 	}
 
-	return l.input[position:l.position]
+	return result
 }
 
 // skipWhitespace skips any whitespace characters

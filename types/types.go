@@ -3,7 +3,7 @@ package types
 import (
 	"fmt"
 
-	"github.com/example/vibe/ast"
+	"github.com/vibe-lang/vibe/ast"
 )
 
 // Type represents a type in the language

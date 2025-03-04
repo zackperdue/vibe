@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/example/vibe/lexer"
+	"github.com/vibe-lang/vibe/lexer"
 )
 
 func TestLexerPositions(t *testing.T) {

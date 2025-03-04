@@ -3,10 +3,10 @@ package integration_test
 import (
 	"testing"
 
-	"github.com/example/vibe/interpreter"
-	"github.com/example/vibe/lexer"
-	"github.com/example/vibe/object"
-	"github.com/example/vibe/parser"
+	"github.com/vibe-lang/vibe/interpreter"
+	"github.com/vibe-lang/vibe/lexer"
+	"github.com/vibe-lang/vibe/object"
+	"github.com/vibe-lang/vibe/parser"
 )
 
 // TestBasicExpressionEvaluation tests the complete workflow from lexing to parsing to evaluation

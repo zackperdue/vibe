@@ -8,10 +8,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/example/vibe/ast"
-	"github.com/example/vibe/lexer"
-	"github.com/example/vibe/parser"
-	"github.com/example/vibe/types"
+	"github.com/vibe-lang/vibe/ast"
+	"github.com/vibe-lang/vibe/lexer"
+	"github.com/vibe-lang/vibe/parser"
+	"github.com/vibe-lang/vibe/types"
 )
 
 // Value interface represents values in our language
@@ -453,6 +453,8 @@ func (i *Interpreter) eval(node ast.Node, env *Environment) Value {
 		return i.evalBinaryExpression(node, env)
 	case *ast.ArrayLiteral:
 		return i.evalArrayLiteral(node, env)
+	case *ast.IndexExpr:
+		return i.evalIndexExpression(node, env)
 	case *ast.TypeAnnotation:
 		// Type annotations don't evaluate to a value on their own
 		return &NilValue{}
@@ -888,7 +890,7 @@ func (i *Interpreter) evalForStatement(node *ast.ForStmt, env *Environment) Valu
 	case *ArrayValue:
 		// Iterate over array elements
 		for _, element := range iterable.Elements {
-			// Bind the current element to the iterator variable
+			// Bind the current element to the iterator variable in the loop environment
 			loopEnv.Set(node.Iterator, element)
 
 			// Execute the loop body
@@ -905,7 +907,7 @@ func (i *Interpreter) evalForStatement(node *ast.ForStmt, env *Environment) Valu
 			// Convert each character to a string value
 			charValue := &StringValue{Value: string(char)}
 
-			// Bind the current character to the iterator variable
+			// Bind the current character to the iterator variable in the loop environment
 			loopEnv.Set(node.Iterator, charValue)
 
 			// Execute the loop body
@@ -1205,4 +1207,26 @@ func toString(val Value) string {
 	default:
 		return fmt.Sprintf("%v", val.Inspect())
 	}
+}
+
+// evalIndexExpression evaluates an array index expression
+func (i *Interpreter) evalIndexExpression(node *ast.IndexExpr, env *Environment) Value {
+	array := i.eval(node.Array, env)
+	if array.Type() != "ARRAY" {
+		return &StringValue{Value: fmt.Sprintf("Type error: cannot index into non-array type %s", array.Type())}
+	}
+
+	index := i.eval(node.Index, env)
+	if index.Type() != "INTEGER" {
+		return &StringValue{Value: fmt.Sprintf("Type error: array index must be an integer, got %s", index.Type())}
+	}
+
+	arrayValue, _ := array.(*ArrayValue)
+	indexValue, _ := index.(*IntegerValue)
+
+	if indexValue.Value < 0 || indexValue.Value >= len(arrayValue.Elements) {
+		return &StringValue{Value: fmt.Sprintf("Index out of range: %d (array length: %d)", indexValue.Value, len(arrayValue.Elements))}
+	}
+
+	return arrayValue.Elements[indexValue.Value]
 }

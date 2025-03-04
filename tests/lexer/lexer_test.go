@@ -3,7 +3,7 @@ package lexer_test
 import (
 	"testing"
 
-	"github.com/example/vibe/lexer"
+	"github.com/vibe-lang/vibe/lexer"
 )
 
 // TestBasicTokenization tests the lexer's ability to tokenize basic constructs

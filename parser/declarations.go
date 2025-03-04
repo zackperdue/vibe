@@ -3,8 +3,8 @@ package parser
 import (
 	"fmt"
 
-	"github.com/example/vibe/ast"
-	"github.com/example/vibe/lexer"
+	"github.com/vibe-lang/vibe/ast"
+	"github.com/vibe-lang/vibe/lexer"
 )
 
 // parseVariableDeclaration parses a variable declaration with type annotation

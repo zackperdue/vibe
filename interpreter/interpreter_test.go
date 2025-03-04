@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/example/vibe/ast"
-	"github.com/example/vibe/lexer"
-	"github.com/example/vibe/parser"
+	"github.com/vibe-lang/vibe/ast"
+	"github.com/vibe-lang/vibe/lexer"
+	"github.com/vibe-lang/vibe/parser"
 )
 
 func TestEvalIntegerExpression(t *testing.T) {

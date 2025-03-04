@@ -3,10 +3,7 @@ package interpreter_test
 import (
 	"testing"
 
-	"github.com/example/vibe/interpreter"
-	"github.com/example/vibe/lexer"
-	"github.com/example/vibe/object"
-	"github.com/example/vibe/parser"
+	"github.com/vibe-lang/vibe/object"
 )
 
 // TestEvalIntegerExpression tests the evaluation of integer expressions
@@ -446,14 +443,7 @@ func TestForLoop(t *testing.T) {
 // Helper functions
 
 func testEval(t *testing.T, input string) object.Object {
-	l := lexer.New(input)
-	p, err := parser.Parse(l)
-	if len(err) != 0 {
-		t.Fatalf("parser errors: %v", err)
-	}
-
-	env := object.NewEnvironment()
-	return interpreter.Eval(p, env)
+	return object.Eval(input)
 }
 
 func testIntegerObject(t *testing.T, obj object.Object, expected int64) bool {
@@ -485,8 +475,8 @@ func testBooleanObject(t *testing.T, obj object.Object, expected bool) bool {
 }
 
 func testNilObject(t *testing.T, obj object.Object) bool {
-	if obj != interpreter.NIL {
-		t.Errorf("object is not NIL. got=%T (%+v)", obj, obj)
+	if obj.Type() != object.NULL_OBJ {
+		t.Errorf("object is not NULL. got=%T (%+v)", obj, obj)
 		return false
 	}
 	return true
