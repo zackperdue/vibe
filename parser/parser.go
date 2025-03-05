@@ -186,6 +186,10 @@ func (p *Parser) parseStatement() ast.Node {
 		return p.parseRequireStatement()
 	case lexer.TYPE:
 		return p.parseTypeDeclaration()
+	case lexer.AT:
+		// For instance variable assignments (@x = 1), we'll handle it in parseExpressionStatement
+		// which will call parseExpression, which now handles AT tokens
+		return p.parseExpressionStatement()
 	default:
 		// Check for variable declaration with type annotation (x: int = 5)
 		if p.curTokenIs(lexer.IDENT) && p.peekTokenIs(lexer.COLON) {
@@ -210,6 +214,12 @@ func (p *Parser) parseStatement() ast.Node {
 
 // parseExpressionStatement parses an expression statement
 func (p *Parser) parseExpressionStatement() ast.Node {
+	// Special case for assignments where the left side is already parsed
+	// This happens in cases like "dy = @y - other.y"
+	if p.curTokenIs(lexer.IDENT) && p.peekTokenIs(lexer.ASSIGN) {
+		return p.parseAssignment()
+	}
+
 	stmt := &ast.ExpressionStatement{
 		Expression: p.parseExpression(ast.LOWEST),
 	}
@@ -420,10 +430,10 @@ func (p *Parser) parseClassDefinition() ast.Node {
 	}
 
 	class.Name = p.curToken.Literal
+	p.nextToken() // Move past class name
 
 	// Check for inheritance
-	if p.peekTokenIs(lexer.INHERITS) {
-		p.nextToken() // Skip to INHERITS
+	if p.curTokenIs(lexer.INHERITS) {
 		p.nextToken() // Skip INHERITS
 
 		// Parse superclass name
@@ -436,17 +446,17 @@ func (p *Parser) parseClassDefinition() ast.Node {
 		p.nextToken() // Move past superclass name
 	}
 
-	// Expect opening brace
-	if !p.curTokenIs(lexer.LBRACE) {
-		p.addError(fmt.Sprintf("Expected '{' after class name, got %s", p.curToken.Type))
+	// Expect 'do' keyword
+	if !p.curTokenIs(lexer.DO) {
+		p.addError(fmt.Sprintf("Expected 'do' after class name, got %s", p.curToken.Type))
 		return nil
 	}
 
-	// Skip opening brace
+	// Skip 'do' keyword
 	p.nextToken()
 
 	// Parse methods
-	for !p.curTokenIs(lexer.RBRACE) && !p.curTokenIs(lexer.EOF) {
+	for !p.curTokenIs(lexer.END) && !p.curTokenIs(lexer.EOF) {
 		// Parse method
 		if p.curTokenIs(lexer.FUNCTION) {
 			method := p.parseFunctionDefinition()
@@ -454,18 +464,19 @@ func (p *Parser) parseClassDefinition() ast.Node {
 				class.Methods = append(class.Methods, method)
 			}
 		} else {
+			// Skip tokens until we find a method definition or end
 			p.addError(fmt.Sprintf("Expected method definition, got %s", p.curToken.Type))
-			return nil
+			p.nextToken()
 		}
 	}
 
-	// Expect closing brace
-	if !p.curTokenIs(lexer.RBRACE) {
-		p.addError(fmt.Sprintf("Expected '}' at end of class definition, got %s", p.curToken.Type))
+	// Expect 'end' keyword
+	if !p.curTokenIs(lexer.END) {
+		p.addError(fmt.Sprintf("Expected 'end' at end of class definition, got %s", p.curToken.Type))
 		return nil
 	}
 
-	// Skip closing brace
+	// Skip 'end' keyword
 	p.nextToken()
 
 	return class
@@ -504,6 +515,22 @@ func (p *Parser) curTokenIs(t lexer.TokenType) bool {
 
 func (p *Parser) peekTokenIs(t lexer.TokenType) bool {
 	return p.peekToken.Type == t
+}
+
+func (p *Parser) peekTokenIs2(t lexer.TokenType) bool {
+	// Save current tokens
+	curToken := p.curToken
+	peekToken := p.peekToken
+
+	// Advance to peek at the token after next
+	p.nextToken()
+	result := p.peekTokenIs(t)
+
+	// Restore original tokens
+	p.curToken = curToken
+	p.peekToken = peekToken
+
+	return result
 }
 
 func (p *Parser) expectPeek(t lexer.TokenType) bool {
@@ -644,4 +671,46 @@ func (p *Parser) parseTypeAnnotation() *ast.TypeAnnotation {
 	}
 
 	return typeAnnotation
+}
+
+// parseInstanceVarAssignment parses an instance variable assignment statement (@x = 1)
+func (p *Parser) parseInstanceVarAssignment() ast.Node {
+	fmt.Printf("DEBUG PARSER: parseInstanceVarAssignment starting with token: %+v\n", p.curToken)
+
+	// Skip the @ symbol
+	p.nextToken()
+
+	// Get the instance variable name
+	if !p.curTokenIs(lexer.IDENT) {
+		p.addError(fmt.Sprintf("Expected identifier after '@', got %s", p.curToken.Type))
+		return nil
+	}
+
+	name := p.curToken.Literal
+
+	// Skip to the equals sign
+	p.nextToken()
+
+	// Skip the equals sign
+	p.nextToken()
+
+	fmt.Printf("DEBUG PARSER: After equals, current token is: %+v\n", p.curToken)
+
+	// Parse the right side (value)
+	right := p.parseExpression(ast.LOWEST)
+
+	// Create the assignment node
+	assignment := &ast.Assignment{
+		Name:  "@" + name, // Prefix with @ to indicate instance variable
+		Value: right,
+	}
+
+	fmt.Printf("DEBUG PARSER: Parsed instance variable assignment @%s = %v\n", name, right)
+
+	// Optional semicolon
+	if p.peekTokenIs(lexer.SEMICOLON) {
+		p.nextToken()
+	}
+
+	return assignment
 }

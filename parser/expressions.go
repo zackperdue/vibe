@@ -19,6 +19,14 @@ func (p *Parser) parseExpression(precedence int) ast.Node {
 	switch p.curToken.Type {
 	case lexer.IDENT:
 		leftExp = &ast.Identifier{Name: p.curToken.Literal}
+	case lexer.AT:
+		// Handle instance variables (@var)
+		p.nextToken() // Move past the @ symbol
+		if !p.curTokenIs(lexer.IDENT) {
+			p.addError(fmt.Sprintf("Expected identifier after '@', got %s", p.curToken.Type))
+			return nil
+		}
+		leftExp = &ast.InstanceVar{Name: p.curToken.Literal}
 	case lexer.INT:
 		value, err := strconv.ParseFloat(p.curToken.Literal, 64)
 		if err != nil {
@@ -52,22 +60,16 @@ func (p *Parser) parseExpression(precedence int) ast.Node {
 		// Handle anonymous function expressions by using the updated parseFunctionDefinition
 		leftExp = p.parseFunctionDefinition()
 		return leftExp // Return early as parseFunctionDefinition already advances tokens
-	case lexer.DO:
-		// The 'do' keyword should only be used in control structures, not as an expression
-		// Create a placeholder node to prevent parse errors
-		p.addError(fmt.Sprintf("Unexpected 'do' keyword in expression context at line %d, column %d",
-			p.curToken.Line, p.curToken.Column))
-		leftExp = &ast.Identifier{Name: "do"} // Create a dummy identifier
-	case lexer.END:
-		// Similar to 'do', 'end' should only be used in control structures
-		p.addError(fmt.Sprintf("Unexpected 'end' keyword in expression context at line %d, column %d",
-			p.curToken.Line, p.curToken.Column))
-		leftExp = &ast.Identifier{Name: "end"} // Create a dummy identifier
-	case lexer.INHERITS:
-		// 'inherits' should only be used in class definitions
-		p.addError(fmt.Sprintf("Unexpected 'inherits' keyword in expression context at line %d, column %d",
-			p.curToken.Line, p.curToken.Column))
-		leftExp = &ast.Identifier{Name: "inherits"} // Create a dummy identifier
+
+	// Handle keywords that shouldn't be used in expression contexts
+	case lexer.DO, lexer.END, lexer.INHERITS, lexer.ELSE, lexer.ELSIF,
+		 lexer.WHILE, lexer.FOR, lexer.IN, lexer.CLASS, lexer.RETURN, lexer.REQUIRE:
+		// These keywords should only be used in their specific control structure contexts
+		p.addError(fmt.Sprintf("Unexpected '%s' keyword in expression context at line %d, column %d",
+			p.curToken.Literal, p.curToken.Line, p.curToken.Column))
+		// Create a dummy identifier to allow parsing to continue
+		leftExp = &ast.Identifier{Name: p.curToken.Literal}
+
 	case lexer.LPAREN:
 		p.nextToken() // Skip the opening parenthesis
 		exp := p.parseExpression(ast.LOWEST)
@@ -221,8 +223,29 @@ func (p *Parser) parseBinaryExpression(left ast.Node) ast.Node {
 	operator := p.curToken.Literal
 	precedence := p.curPrecedence()
 
-	p.nextToken()
+	// Handle assignment to instance variables
+	if operator == "=" {
+		// Check if left is an instance variable
+		if instanceVar, ok := left.(*ast.InstanceVar); ok {
+			p.nextToken() // Skip the = token
+			right := p.parseExpression(ast.LOWEST)
+			return &ast.Assignment{
+				Name:  "@" + instanceVar.Name,
+				Value: right,
+			}
+		} else if ident, ok := left.(*ast.Identifier); ok {
+			// Regular variable assignment
+			p.nextToken() // Skip the = token
+			right := p.parseExpression(ast.LOWEST)
+			return &ast.Assignment{
+				Name:  ident.Name,
+				Value: right,
+			}
+		}
+	}
 
+	// Regular binary expression
+	p.nextToken()
 	right := p.parseExpression(precedence)
 
 	return &ast.BinaryExpr{
