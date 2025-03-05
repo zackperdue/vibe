@@ -146,7 +146,7 @@ func TestReturnStatements(t *testing.T) {
 // TestForLoopStatement tests the parsing of for loop statements
 func TestForLoopStatement(t *testing.T) {
 	input := `for i in [1, 2, 3] do
-		let x = i * 2;
+		x = i * 2
 	end`
 
 	l := lexer.New(input)
