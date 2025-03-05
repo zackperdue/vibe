@@ -52,6 +52,22 @@ func (p *Parser) parseExpression(precedence int) ast.Node {
 		// Handle anonymous function expressions by using the updated parseFunctionDefinition
 		leftExp = p.parseFunctionDefinition()
 		return leftExp // Return early as parseFunctionDefinition already advances tokens
+	case lexer.DO:
+		// The 'do' keyword should only be used in control structures, not as an expression
+		// Create a placeholder node to prevent parse errors
+		p.addError(fmt.Sprintf("Unexpected 'do' keyword in expression context at line %d, column %d",
+			p.curToken.Line, p.curToken.Column))
+		leftExp = &ast.Identifier{Name: "do"} // Create a dummy identifier
+	case lexer.END:
+		// Similar to 'do', 'end' should only be used in control structures
+		p.addError(fmt.Sprintf("Unexpected 'end' keyword in expression context at line %d, column %d",
+			p.curToken.Line, p.curToken.Column))
+		leftExp = &ast.Identifier{Name: "end"} // Create a dummy identifier
+	case lexer.INHERITS:
+		// 'inherits' should only be used in class definitions
+		p.addError(fmt.Sprintf("Unexpected 'inherits' keyword in expression context at line %d, column %d",
+			p.curToken.Line, p.curToken.Column))
+		leftExp = &ast.Identifier{Name: "inherits"} // Create a dummy identifier
 	case lexer.LPAREN:
 		p.nextToken() // Skip the opening parenthesis
 		exp := p.parseExpression(ast.LOWEST)
