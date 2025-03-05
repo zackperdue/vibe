@@ -341,7 +341,7 @@ func (i *Interpreter) evalIfStatement(node *ast.IfStmt, env *Environment) Value 
 	condition := i.eval(node.Condition, env)
 
 	// Check if the condition is true
-	if isTruthy(condition) {
+	if isValueTruthy(condition) {
 		return i.eval(node.Consequence, env)
 	}
 
@@ -423,7 +423,7 @@ func (i *Interpreter) evalPrefixExpression(node *ast.UnaryExpr, env *Environment
 		}
 	case "!":
 		// Handle logical negation
-		return &BooleanValue{Value: !isTruthy(right)}
+		return &BooleanValue{Value: !isValueTruthy(right)}
 	default:
 		return &StringValue{Value: fmt.Sprintf("unknown operator: %s%s", node.Operator, right.Type())}
 	}
@@ -676,19 +676,13 @@ func (i *Interpreter) parseTypeAnnotation(node *ast.TypeAnnotation) types.Type {
 	}
 }
 
-// isTruthy returns true if the value is truthy
-func isTruthy(obj Value) bool {
-	switch obj := obj.(type) {
-	case *BooleanValue:
-		return obj.Value
+// isValueTruthy returns true if the value is truthy
+func isValueTruthy(val Value) bool {
+	switch val := val.(type) {
 	case *NilValue:
 		return false
-	case *IntegerValue:
-		return obj.Value != 0
-	case *FloatValue:
-		return obj.Value != 0
-	case *StringValue:
-		return obj.Value != ""
+	case *BooleanValue:
+		return val.Value
 	default:
 		return true
 	}

@@ -1,7 +1,6 @@
 package integration_test
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/vibe-lang/vibe/ast"
@@ -31,51 +30,13 @@ func evalStatementTest(t *testing.T, input string) object.Object {
 	// Create an environment
 	env := object.NewEnvironment()
 
-	// Evaluate each statement
-	var result object.Object = object.NULL
-	for i, stmt := range p.Statements {
-		t.Logf("Evaluating statement %d: %T", i, stmt)
+	// Evaluate the entire program at once
+	result := interpreter.Eval(p, env)
+	t.Logf("  Result type: %T", result)
 
-		// For variable declarations, print the name
-		if varDecl, ok := stmt.(*ast.VariableDecl); ok {
-			t.Logf("  Variable declaration: %s", varDecl.Name)
-		}
-
-		// For assignments, print the name and value
-		if assign, ok := stmt.(*ast.Assignment); ok {
-			t.Logf("  Assignment: %s", assign.Name)
-			if assign.Value != nil {
-				t.Logf("  Assignment value type: %T", assign.Value)
-			} else {
-				t.Logf("  Assignment value is nil")
-			}
-		}
-
-		// For identifiers, print the name
-		if ident, ok := stmt.(*ast.Identifier); ok {
-			t.Logf("  Identifier: %s", ident.Name)
-
-			// For the last statement, which is an identifier, look it up in the environment
-			if i == len(p.Statements) - 1 {
-				if val, ok := env.Get(ident.Name); ok {
-					t.Logf("  Found value for %s: %v", ident.Name, val)
-					return val
-				} else {
-					t.Logf("  Identifier not found: %s", ident.Name)
-					return &object.Error{Message: fmt.Sprintf("identifier not found: %s", ident.Name)}
-				}
-			}
-		}
-
-		// Evaluate the statement
-		result = interpreter.Eval(stmt, env)
-		t.Logf("  Result type: %T", result)
-
-		// If there's an error, return it
-		if err, ok := result.(*object.Error); ok {
-			t.Logf("  Error: %s", err.Message)
-			return result
-		}
+	// If there's an error, return it
+	if err, ok := result.(*object.Error); ok {
+		t.Logf("  Error: %s", err.Message)
 	}
 
 	// Return the final result
