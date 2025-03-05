@@ -68,15 +68,7 @@ func (p *Parser) nextToken() {
 	p.curToken = p.peekToken
 	p.peekToken = p.l.NextToken()
 
-	// Print every token as it's processed
-	fmt.Printf("TOKEN: %s (%s) at line %d, column %d\n",
-		p.curToken.Type, p.curToken.Literal, p.curToken.Line, p.curToken.Column)
-
-		p.curToken.Type, p.curToken.Literal, p.curToken.Line, p.curToken.Column,
-		p.peekToken.Type, p.peekToken.Literal, p.peekToken.Line, p.peekToken.Column)
-
-		p.curToken.Type, p.curToken.Literal, p.curToken.Line, p.curToken.Column,
-		p.peekToken.Type, p.peekToken.Literal, p.peekToken.Line, p.peekToken.Column)
+	// Advance to the next token
 }
 
 // Errors returns parser errors
@@ -98,12 +90,8 @@ func (p *Parser) parseProgram() *ast.Program {
 	}
 
 	for !p.curTokenIs(lexer.EOF) {
-			p.curToken.Type, p.curToken.Literal, p.curToken.Line, p.curToken.Column,
-			p.peekToken.Type, p.peekToken.Literal, p.peekToken.Line, p.peekToken.Column)
-
 		// Check for "b" token and print details
 		if p.curToken.Literal == "b" {
-				p.curToken.Line, p.curToken.Column, p.curToken.Type)
 
 			// Special handling for 'b' token at line 11, column 1
 			if p.curToken.Line == 11 && p.curToken.Column == 1 && p.peekToken.Type == lexer.COLON {
@@ -142,7 +130,6 @@ func (p *Parser) parseProgram() *ast.Program {
 
 		// Special handling for identifiers at column 1 (likely new statements)
 		if p.curToken.Type == lexer.IDENT && p.curToken.Column == 1 {
-				p.curToken.Literal, p.curToken.Line)
 
 			// Save current state to restore if needed
 			savedCurToken := p.curToken
@@ -151,7 +138,6 @@ func (p *Parser) parseProgram() *ast.Program {
 			// Check if next token is a colon (direct variable declaration)
 			if p.peekTokenIs(lexer.COLON) {
 				// Direct case: b: string = "value"
-					p.curToken.Literal, p.curToken.Line, p.curToken.Column)
 
 				// Save the variable name
 				name := p.curToken.Literal
@@ -190,9 +176,7 @@ func (p *Parser) parseProgram() *ast.Program {
 		}
 
 		// Special case for variable declarations with type annotations
-			p.curToken.Type, p.peekToken.Type, p.curToken.Type == lexer.IDENT && p.peekToken.Type == lexer.COLON)
 		if p.isStartOfStatement() && p.curToken.Type == lexer.IDENT && p.peekToken.Type == lexer.COLON {
-				p.curToken.Literal, p.curToken.Line, p.curToken.Column)
 
 			// Save the variable name
 			name := p.curToken.Literal
@@ -264,15 +248,11 @@ func (p *Parser) isStartOfStatement() bool {
 
 // parseStatement parses a statement
 func (p *Parser) parseStatement() ast.Node {
-		p.curToken.Type, p.curToken.Literal, p.curToken.Line, p.curToken.Column,
-		p.peekToken.Type, p.peekToken.Literal, p.peekToken.Line, p.peekToken.Column)
 
 	switch p.curToken.Type {
 	case lexer.IDENT:
 		// Check if this is a variable declaration with type annotation (identifier followed by colon)
-			p.peekToken.Type, lexer.COLON, p.peekToken.Type == lexer.COLON)
 		if p.peekTokenIs(lexer.COLON) {
-				p.curToken.Literal, p.curToken.Line, p.curToken.Column)
 			return p.parseVariableDeclaration()
 		}
 
@@ -303,7 +283,6 @@ func (p *Parser) parseStatement() ast.Node {
 			p.peekToken = savedPeekToken
 
 			if found {
-					p.curToken.Literal, p.curToken.Line, p.curToken.Column)
 				return p.parseVariableDeclaration()
 			}
 		}

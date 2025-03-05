@@ -235,16 +235,16 @@ end
 	}
 }
 
-// TestLetStatements tests let statements
+// TestLetStatements tests variable declarations
 func TestLetStatements(t *testing.T) {
 	tests := []struct {
 		input    string
 		expected int64
 	}{
-		{"let a = 5; a;", 5},
-		{"let a = 5 * 5; a;", 25},
-		{"let a = 5; let b = a; b;", 5},
-		{"let a = 5; let b = a; let c = a + b + 5; c;", 15},
+		{"a: int = 5; a;", 5},
+		{"a: int = 5 * 5; a;", 25},
+		{"a: int = 5; b: int = a; b;", 5},
+		{"a: int = 5; b: int = a; c: int = a + b + 5; c;", 15},
 	}
 
 	for _, tt := range tests {
@@ -254,7 +254,7 @@ func TestLetStatements(t *testing.T) {
 
 // TestFunctionObject tests function objects
 func TestFunctionObject(t *testing.T) {
-	input := "function(x) do x + 2 end"
+	input := "def f(x: int): int do x + 2 end"
 
 	evaluated := testEval(t, input)
 	fn, ok := evaluated.(*object.Function)
@@ -267,8 +267,8 @@ func TestFunctionObject(t *testing.T) {
 			fn.Parameters)
 	}
 
-	if fn.Parameters[0].String() != "x" {
-		t.Fatalf("parameter is not 'x'. got=%q", fn.Parameters[0])
+	if fn.Parameters[0].String() != "x: int" {
+		t.Fatalf("parameter is not 'x: int'. got=%q", fn.Parameters[0])
 	}
 
 	expectedBody := "(x + 2)"
@@ -284,12 +284,12 @@ func TestFunctionApplication(t *testing.T) {
 		input    string
 		expected int64
 	}{
-		{"let identity = function(x) do x end; identity(5);", 5},
-		{"let identity = function(x) do return x end; identity(5);", 5},
-		{"let double = function(x) do x * 2 end; double(5);", 10},
-		{"let add = function(x, y) do x + y end; add(5, 5);", 10},
-		{"let add = function(x, y) do x + y end; add(5 + 5, add(5, 5));", 20},
-		{"function(x) do x end(5)", 5},
+		{"identity = def(x: int): int do x end; identity(5);", 5},
+		{"identity = def(x: int): int do return x end; identity(5);", 5},
+		{"double = def(x: int): int do x * 2 end; double(5);", 10},
+		{"add = def(x: int, y: int): int do x + y end; add(5, 5);", 10},
+		{"add = def(x: int, y: int): int do x + y end; add(5 + 5, add(5, 5));", 20},
+		{"def f(x: int): int do x end; f(5)", 5},
 	}
 
 	for _, tt := range tests {
@@ -349,7 +349,7 @@ func TestArrayIndexExpressions(t *testing.T) {
 			3,
 		},
 		{
-			"let i = 0; [1][i];",
+			"i: int = 0; [1][i];",
 			1,
 		},
 		{
@@ -357,15 +357,15 @@ func TestArrayIndexExpressions(t *testing.T) {
 			3,
 		},
 		{
-			"let myArray = [1, 2, 3]; myArray[2];",
+			"myArray: array = [1, 2, 3]; myArray[2];",
 			3,
 		},
 		{
-			"let myArray = [1, 2, 3]; myArray[0] + myArray[1] + myArray[2];",
+			"myArray: array = [1, 2, 3]; myArray[0] + myArray[1] + myArray[2];",
 			6,
 		},
 		{
-			"let myArray = [1, 2, 3]; let i = myArray[0]; myArray[i]",
+			"myArray: array = [1, 2, 3]; i: int = myArray[0]; myArray[i]",
 			2,
 		},
 		{
@@ -393,11 +393,11 @@ func TestArrayIndexExpressions(t *testing.T) {
 func TestForLoop(t *testing.T) {
     tests := []struct {
         input string
-        expected interface{}
+        expected int
     }{
         {
             `
-            let sum = 0
+            sum: int = 0
             for x in [1, 2, 3, 4, 5] do
                 sum = sum + x
             end
@@ -407,8 +407,8 @@ func TestForLoop(t *testing.T) {
         },
         {
             `
-            let arr = [1, 2, 3]
-            let doubled = []
+            arr: array = [1, 2, 3]
+            doubled: array = []
             for x in arr do
                 doubled = doubled + [x * 2]
             end
@@ -418,7 +418,7 @@ func TestForLoop(t *testing.T) {
         },
         {
             `
-            let count = 0
+            count: int = 0
             for x in [] do
                 count = count + 1
             end
@@ -430,13 +430,7 @@ func TestForLoop(t *testing.T) {
 
     for _, tt := range tests {
         evaluated := testEval(t, tt.input)
-
-        integer, ok := tt.expected.(int)
-        if ok {
-            testIntegerObject(t, evaluated, int64(integer))
-        } else {
-            testNilObject(t, evaluated)
-        }
+        testIntegerObject(t, evaluated, int64(tt.expected))
     }
 }
 

@@ -38,6 +38,47 @@ func (p *Parser) parseExpression(precedence int) ast.Node {
 		leftExp = &ast.BooleanLiteral{Value: false}
 	case lexer.NIL:
 		leftExp = &ast.NilLiteral{}
+	case lexer.FUNCTION:
+		// Handle anonymous function expressions
+		p.nextToken() // Skip 'function' keyword
+
+		// Check for opening parenthesis
+		if !p.curTokenIs(lexer.LPAREN) {
+			p.addError(fmt.Sprintf("Expected '(' after 'function', got %s instead at line %d, column %d",
+				p.curToken.Type, p.curToken.Line, p.curToken.Column))
+			return nil
+		}
+
+		// Parse function parameters
+		parameters := p.parseFunctionParameters()
+
+		// Check for 'do' keyword to start function body
+		if !p.curTokenIs(lexer.DO) {
+			p.addError(fmt.Sprintf("Expected 'do' after function parameters, got %s instead at line %d, column %d",
+				p.curToken.Type, p.curToken.Line, p.curToken.Column))
+			return nil
+		}
+
+		// Parse function body
+		p.nextToken() // move past 'do'
+		body := p.parseBlockStatements(lexer.END)
+
+		// Check for 'end' keyword to close function definition
+		if !p.curTokenIs(lexer.END) {
+			p.addError(fmt.Sprintf("Expected 'end' to close function expression, got %s instead at line %d, column %d",
+				p.curToken.Type, p.curToken.Line, p.curToken.Column))
+			return nil
+		}
+
+		// Consume the 'end' token
+		p.nextToken()
+
+		leftExp = &ast.FunctionDef{
+			Name:       "", // Anonymous function has no name
+			Parameters: parameters,
+			ReturnType: nil, // No return type for anonymous functions
+			Body:       body,
+		}
 	case lexer.LPAREN:
 		p.nextToken() // Skip the opening parenthesis
 		exp := p.parseExpression(ast.LOWEST)

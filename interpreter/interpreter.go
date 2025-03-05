@@ -454,6 +454,8 @@ func (i *Interpreter) eval(node ast.Node, env *Environment) Value {
 		return i.evalForStatement(node, env)
 	case *ast.BinaryExpr:
 		return i.evalBinaryExpression(node, env)
+	case *ast.UnaryExpr:
+		return i.evalUnaryExpression(node, env)
 	case *ast.ArrayLiteral:
 		return i.evalArrayLiteral(node, env)
 	case *ast.IndexExpr:
@@ -544,12 +546,34 @@ func (i *Interpreter) evalProgram(program *ast.Program, env *Environment) Value 
 	var result Value
 	result = &NilValue{}
 
-	for _, statement := range program.Statements {
+	for idx, statement := range program.Statements {
 		result = i.eval(statement, env)
 
 		// If we hit a return statement, unwrap it and return the value
 		if returnValue, ok := result.(*ReturnValue); ok {
 			return returnValue.Value
+		}
+
+		// Special handling for error strings to prevent losing error messages
+		if strVal, ok := result.(*StringValue); ok {
+			if strings.Contains(strVal.Value, "Error:") ||
+			   strings.Contains(strVal.Value, "identifier not found") ||
+			   strings.Contains(strVal.Value, "type mismatch") {
+				return result
+			}
+		}
+
+		// If this is the last statement in the program, return its result
+		// This ensures that expressions like "a" or "a + b" in the last position
+		// will properly return their evaluated value
+		if idx == len(program.Statements)-1 {
+			// If the last statement is just a simple variable reference,
+			// we want to return the value of that variable
+			if ident, ok := statement.(*ast.Identifier); ok {
+				if val, ok := env.Get(ident.Name); ok {
+					return val
+				}
+			}
 		}
 	}
 
@@ -577,10 +601,43 @@ func (i *Interpreter) evalBlockStatement(block *ast.BlockStmt, env *Environment)
 
 func (i *Interpreter) evalIdentifier(node *ast.Identifier, env *Environment) Value {
 	if val, ok := env.Get(node.Name); ok {
+		// Found the variable, return its value
 		return val
 	}
 
-	return &StringValue{Value: fmt.Sprintf("Error: variable '%s' not found", node.Name)}
+	// Variable not found, return an error
+	return &StringValue{Value: fmt.Sprintf("identifier not found: %s", node.Name)}
+}
+
+func (i *Interpreter) evalUnaryExpression(node *ast.UnaryExpr, env *Environment) Value {
+	right := i.eval(node.Right, env)
+
+	// Check if right is an error string and just return it
+	if strVal, ok := right.(*StringValue); ok {
+		if strings.Contains(strVal.Value, "Error:") ||
+		   strings.Contains(strVal.Value, "identifier not found") ||
+		   strings.Contains(strVal.Value, "Type error:") {
+			return right // Return the error
+		}
+	}
+
+	switch node.Operator {
+	case "-":
+		// Handle numeric negation
+		switch right := right.(type) {
+		case *IntegerValue:
+			return &IntegerValue{Value: -right.Value}
+		case *FloatValue:
+			return &FloatValue{Value: -right.Value}
+		default:
+			return &StringValue{Value: fmt.Sprintf("unknown operator: -%s", right.Type())}
+		}
+	case "!":
+		// Handle logical negation
+		return &BooleanValue{Value: !isTruthy(right)}
+	default:
+		return &StringValue{Value: fmt.Sprintf("unknown operator: %s%s", node.Operator, right.Type())}
+	}
 }
 
 func (i *Interpreter) evalPrintStatement(node *ast.PrintStmt, env *Environment) Value {
@@ -660,12 +717,22 @@ func (i *Interpreter) evalAssignment(node *ast.Assignment, env *Environment) Val
 		val = &NilValue{}
 	}
 
+	// Handle error cases
+	if strVal, ok := val.(*StringValue); ok {
+		if strings.Contains(strVal.Value, "Error:") ||
+		   strings.Contains(strVal.Value, "Type error:") {
+			return val // Return the error
+		}
+	}
+
+	// Set the value in the environment
 	err := env.Set(node.Name, val)
 	if err != nil {
 		return &StringValue{Value: err.Error()}
 	}
 
-	return &NilValue{}
+	// Return the value that was assigned
+	return val
 }
 
 func (i *Interpreter) evalFunctionDefinition(node *ast.FunctionDef, env *Environment) Value {
@@ -1217,10 +1284,26 @@ func (i *Interpreter) evalIndexExpression(node *ast.IndexExpr, env *Environment)
 	array := i.eval(node.Array, env)
 	index := i.eval(node.Index, env)
 
-	if array.Type() != "ARRAY" {
-		return &StringValue{Value: fmt.Sprintf("Type error: cannot index into non-array type %s", array.Type())}
+	// If the array evaluation resulted in an error, return the error
+	if strVal, ok := array.(*StringValue); ok &&
+	   (strings.Contains(strVal.Value, "Error:") ||
+	    strings.Contains(strVal.Value, "identifier not found")) {
+		return array
 	}
 
+	// If the index evaluation resulted in an error, return the error
+	if strVal, ok := index.(*StringValue); ok &&
+	   (strings.Contains(strVal.Value, "Error:") ||
+	    strings.Contains(strVal.Value, "identifier not found")) {
+		return index
+	}
+
+	// Check if we have a valid array
+	if array.Type() != "ARRAY" {
+		return &StringValue{Value: fmt.Sprintf("index operator not supported: %s", array.Type())}
+	}
+
+	// Check if we have a valid index
 	if index.Type() != "INTEGER" {
 		return &StringValue{Value: fmt.Sprintf("Type error: array index must be INTEGER, got %s", index.Type())}
 	}
@@ -1228,9 +1311,9 @@ func (i *Interpreter) evalIndexExpression(node *ast.IndexExpr, env *Environment)
 	arrayValue := array.(*ArrayValue)
 	indexValue := index.(*IntegerValue)
 
+	// Bounds check
 	if indexValue.Value < 0 || indexValue.Value >= len(arrayValue.Elements) {
-		return &StringValue{Value: fmt.Sprintf("Error: index out of bounds: index %d exceeds array length %d",
-			indexValue.Value, len(arrayValue.Elements))}
+		return &NilValue{} // Return nil for out-of-bounds index
 	}
 
 	return arrayValue.Elements[indexValue.Value]

@@ -66,16 +66,11 @@ func (p *Parser) parseBlockStatements(endTokens ...lexer.TokenType) *ast.BlockSt
 
 	// Continue parsing statements until we hit one of the end tokens or EOF
 	for !p.curTokenIs(lexer.EOF) && !containsTokenType(p.curToken.Type, endTokens) {
-		fmt.Printf("DEBUG parseBlockStatements: current token: %s (%s) at line %d, column %d, peek token: %s (%s) at line %d, column %d\n",
-			p.curToken.Type, p.curToken.Literal, p.curToken.Line, p.curToken.Column,
-			p.peekToken.Type, p.peekToken.Literal, p.peekToken.Line, p.peekToken.Column)
 
 		stmt := p.parseStatement()
 		if stmt != nil {
-			fmt.Printf("DEBUG: Added statement: %T\n", stmt)
 			block.Statements = append(block.Statements, stmt)
 		} else {
-			fmt.Println("DEBUG: Statement was nil, not adding to block")
 		}
 
 		// If we've reached an end token, don't advance any further
@@ -132,9 +127,6 @@ func (p *Parser) parseWhileStatement() ast.Node {
 
 // parseForStatement parses a for loop statement
 func (p *Parser) parseForStatement() ast.Node {
-	fmt.Printf("DEBUG parseForStatement: current token: %s (%s) at line %d, column %d, peek token: %s (%s) at line %d, column %d\n",
-		p.curToken.Type, p.curToken.Literal, p.curToken.Line, p.curToken.Column,
-		p.peekToken.Type, p.peekToken.Literal, p.peekToken.Line, p.peekToken.Column)
 
 	// Current token is 'for'
 	forStmt := &ast.ForStmt{}
@@ -162,9 +154,6 @@ func (p *Parser) parseForStatement() ast.Node {
 		return nil
 	}
 
-	fmt.Printf("DEBUG parseForStatement (after parsing iterable): current token: %s (%s) at line %d, column %d, peek token: %s (%s) at line %d, column %d\n",
-		p.curToken.Type, p.curToken.Literal, p.curToken.Line, p.curToken.Column,
-		p.peekToken.Type, p.peekToken.Literal, p.peekToken.Line, p.peekToken.Column)
 
 	// Create an empty block for the body
 	forStmt.Body = &ast.BlockStmt{Statements: []ast.Node{}}
@@ -184,9 +173,6 @@ func (p *Parser) parseForStatement() ast.Node {
 		return nil
 	}
 
-	fmt.Printf("DEBUG parseForStatement (at do): current token: %s (%s) at line %d, column %d, peek token: %s (%s) at line %d, column %d\n",
-		p.curToken.Type, p.curToken.Literal, p.curToken.Line, p.curToken.Column,
-		p.peekToken.Type, p.peekToken.Literal, p.peekToken.Line, p.peekToken.Column)
 
 	// Check if the body is empty (do end)
 	if p.peekTokenIs(lexer.END) {
@@ -197,9 +183,6 @@ func (p *Parser) parseForStatement() ast.Node {
 		forStmt.Body = p.parseBlockStatements(lexer.END)
 	}
 
-	fmt.Printf("DEBUG parseForStatement (after body): current token: %s (%s) at line %d, column %d, peek token: %s (%s) at line %d, column %d\n",
-		p.curToken.Type, p.curToken.Literal, p.curToken.Line, p.curToken.Column,
-		p.peekToken.Type, p.peekToken.Literal, p.peekToken.Line, p.peekToken.Column)
 
 	// After parsing the body, we should be at 'end'
 	if !p.curTokenIs(lexer.END) {
@@ -210,9 +193,6 @@ func (p *Parser) parseForStatement() ast.Node {
 
 	p.nextToken() // Move past 'end'
 
-	fmt.Printf("DEBUG parseForStatement (end): current token: %s (%s) at line %d, column %d, peek token: %s (%s) at line %d, column %d\n",
-		p.curToken.Type, p.curToken.Literal, p.curToken.Line, p.curToken.Column,
-		p.peekToken.Type, p.peekToken.Literal, p.peekToken.Line, p.peekToken.Column)
 
 	return forStmt
 }

@@ -9,30 +9,23 @@ import (
 
 // parseVariableDeclaration parses a variable declaration with type annotation
 func (p *Parser) parseVariableDeclaration() ast.Node {
-	fmt.Println("DEBUG: parseVariableDeclaration called")
-
 	// Get the variable name
 	name := p.curToken.Literal
-	fmt.Println("DEBUG: Variable name:", name)
 	p.nextToken()
 
 	// Check for type annotation
 	var typeAnnotation *ast.TypeAnnotation
 	if p.curToken.Type == lexer.COLON {
-		fmt.Println("DEBUG: Found colon, parsing type annotation")
 		p.nextToken() // Skip ':'
 		typeAnnotation = p.parseTypeAnnotation()
-		fmt.Println("DEBUG: Type annotation:", typeAnnotation.String())
 	}
 
 	// Check for initialization
 	var value ast.Node
 	if p.curToken.Type == lexer.ASSIGN {
-		fmt.Println("DEBUG: Found assignment, parsing value")
 		p.nextToken() // Skip '='
 		value = p.parseExpression(ast.LOWEST)
 		if value != nil {
-			fmt.Println("DEBUG: Value:", value.String())
 		}
 	}
 
@@ -41,7 +34,6 @@ func (p *Parser) parseVariableDeclaration() ast.Node {
 		TypeAnnotation: typeAnnotation,
 		Value:          value,
 	}
-	fmt.Println("DEBUG: Created VariableDecl node:", result.String())
 	return result
 }
 
