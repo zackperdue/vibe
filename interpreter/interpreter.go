@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"math"
-	"os"
 	"strconv"
 	"strings"
 
@@ -255,7 +254,8 @@ func (o *ObjectValue) VibeType() types.Type { return types.AnyType } // TODO: Cr
 
 // Interpreter executes the AST
 type Interpreter struct {
-	env *Environment
+	env           *Environment
+	loadedModules []string // Tracks loaded module paths to prevent circular dependencies
 }
 
 // New creates a new interpreter
@@ -266,7 +266,10 @@ func New() *Interpreter {
 	registerBuiltins(env)
 	registerBuiltinClasses(env)
 
-	return &Interpreter{env: env}
+	return &Interpreter{
+		env:           env,
+		loadedModules: []string{},
+	}
 }
 
 func registerBuiltins(env *Environment) {
@@ -606,15 +609,21 @@ func (i *Interpreter) evalRequireStatement(node *ast.RequireStmt, env *Environme
 		path = "tests/" + path
 	}
 
-	fmt.Printf("DEBUG: Requiring file from path: %s\n", path)
+	// Check for circular dependencies
+	for _, loadedPath := range i.loadedModules {
+		if loadedPath == path {
+			return &StringValue{Value: "Error: circular module dependency detected"}
+		}
+	}
+
+	// Add this module to the loaded modules list
+	i.loadedModules = append(i.loadedModules, path)
 
 	// Read the file
 	source, err := ioutil.ReadFile(path)
 	if err != nil {
-		errMsg := fmt.Sprintf("Error requiring file: %s", err)
-		fmt.Println(errMsg)
-		// Return a special error value that will cause the interpreter to stop execution
-		os.Exit(1) // This will terminate the program immediately
+		// More specific error message for file not found
+		errMsg := "Error: could not load module: file not found"
 		return &StringValue{Value: errMsg}
 	}
 
@@ -625,27 +634,22 @@ func (i *Interpreter) evalRequireStatement(node *ast.RequireStmt, env *Environme
 	program, errors := parser.Parse(l)
 
 	if len(errors) > 0 {
-		fmt.Println("Parser errors in required file (ignoring for now):")
-		for _, err := range errors {
-			fmt.Printf("\t%s\n", err)
-		}
-		// For now, we'll continue even if there are parser errors
-		// This is just for testing purposes
+		return &StringValue{Value: "Error: module contains parser errors"}
 	}
 
 	// Evaluate the program in the current environment
 	// This will make all definitions from the required file available in the current scope
-	fmt.Println("DEBUG: Evaluating required program")
-	result := i.evalProgram(program, env)
-	fmt.Printf("DEBUG: Result of evaluating required program: %s\n", result.Inspect())
+	result := i.eval(program, env)
 
-	// For debugging, print all variables in the environment
-	fmt.Println("DEBUG: Environment contents after require:")
-	for name, value := range env.store {
-		fmt.Printf("DEBUG: %s = %s\n", name, value.Inspect())
+	// Remove this module from the loaded modules list after evaluating
+	for idx, loadedPath := range i.loadedModules {
+		if loadedPath == path {
+			i.loadedModules = append(i.loadedModules[:idx], i.loadedModules[idx+1:]...)
+			break
+		}
 	}
 
-	return &NilValue{}
+	return result
 }
 
 func (i *Interpreter) evalAssignment(node *ast.Assignment, env *Environment) Value {
@@ -695,10 +699,10 @@ func (i *Interpreter) evalCallExpression(node *ast.CallExpr, env *Environment) V
 
 	if fn, ok := function.(*FunctionValue); ok {
 		// Check arity
-		if len(args) > len(fn.Parameters) {
+		if len(fn.Parameters) != len(args) {
 			return &StringValue{Value: fmt.Sprintf(
-				"Wrong number of arguments: function '%s' expects %d, got %d",
-				fn.Name, len(fn.Parameters), len(args))}
+				"Error: wrong number of arguments: expected %d, got %d",
+				len(fn.Parameters), len(args))}
 		}
 
 		// Create a new environment for the function
@@ -1212,20 +1216,22 @@ func toString(val Value) string {
 // evalIndexExpression evaluates an array index expression
 func (i *Interpreter) evalIndexExpression(node *ast.IndexExpr, env *Environment) Value {
 	array := i.eval(node.Array, env)
+	index := i.eval(node.Index, env)
+
 	if array.Type() != "ARRAY" {
 		return &StringValue{Value: fmt.Sprintf("Type error: cannot index into non-array type %s", array.Type())}
 	}
 
-	index := i.eval(node.Index, env)
 	if index.Type() != "INTEGER" {
-		return &StringValue{Value: fmt.Sprintf("Type error: array index must be an integer, got %s", index.Type())}
+		return &StringValue{Value: fmt.Sprintf("Type error: array index must be INTEGER, got %s", index.Type())}
 	}
 
-	arrayValue, _ := array.(*ArrayValue)
-	indexValue, _ := index.(*IntegerValue)
+	arrayValue := array.(*ArrayValue)
+	indexValue := index.(*IntegerValue)
 
 	if indexValue.Value < 0 || indexValue.Value >= len(arrayValue.Elements) {
-		return &StringValue{Value: fmt.Sprintf("Index out of range: %d (array length: %d)", indexValue.Value, len(arrayValue.Elements))}
+		return &StringValue{Value: fmt.Sprintf("Error: index out of bounds: index %d exceeds array length %d",
+			indexValue.Value, len(arrayValue.Elements))}
 	}
 
 	return arrayValue.Elements[indexValue.Value]

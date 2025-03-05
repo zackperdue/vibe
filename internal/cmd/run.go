@@ -36,7 +36,7 @@ var runCmd = &cobra.Command{
 			return
 		}
 
-		runProgram(string(source))
+		runProgram(string(source), filename)
 	},
 }
 
@@ -44,7 +44,7 @@ func init() {
 	rootCmd.AddCommand(runCmd)
 }
 
-func runProgram(source string) {
+func runProgram(source string, filename string) {
 	// Create a lexer from the source code
 	l := lexer.New(source)
 
@@ -83,9 +83,11 @@ func runProgram(source string) {
 	if result != nil && result.Type() != "NIL" {
 		// Check if the result is an error value by seeing if it starts with "Type error:"
 		resultStr := result.Inspect()
-		if strings.HasPrefix(resultStr, "Type error:") || result.Type() == "ERROR" {
-			// For errors, just print the error message without the type
-			ui.ErrorColor.Printf("Error: %s\n", resultStr)
+		if strings.HasPrefix(resultStr, "Type error:") ||
+		   strings.HasPrefix(resultStr, "Error:") ||
+		   result.Type() == "ERROR" {
+			// For errors, show the error with file location
+			ui.ErrorColor.Printf("Error in file %s: %s\n", filename, resultStr)
 		} else {
 			// For non-errors, print both the value and its type
 			ui.ResultColor.Printf("Result: %s ", resultStr)
