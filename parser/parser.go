@@ -109,6 +109,11 @@ func (p *Parser) parseProgram() *ast.Program {
 		}
 
 		fmt.Printf("DEBUG: Parsing regular statement\n")
+
+		// Remember current position to detect if we're stuck
+		startToken := p.curToken
+		startPeekToken := p.peekToken
+
 		stmt := p.parseStatement()
 		if stmt != nil {
 			// Add to the program's statements
@@ -116,6 +121,15 @@ func (p *Parser) parseProgram() *ast.Program {
 			fmt.Printf("DEBUG: Added statement of type %T\n", stmt)
 		} else {
 			fmt.Printf("DEBUG: ⚠️ Statement was nil, skipping\n")
+
+			// If we failed to parse a statement AND we're still at the same token,
+			// we need to manually advance to avoid an infinite loop
+			if p.curToken == startToken && p.peekToken == startPeekToken {
+				p.addError(fmt.Sprintf("Unexpected token '%s' (Type: %s) at line %d, column %d. Skipping.",
+					p.curToken.Literal, p.curToken.Type, p.curToken.Line, p.curToken.Column))
+				p.nextToken() // Force advance to the next token
+				fmt.Printf("DEBUG: Forced token advancement due to parse failure\n")
+			}
 		}
 
 		// Move to the next token to start parsing the next statement
@@ -407,8 +421,24 @@ func (p *Parser) parseClassDefinition() ast.Node {
 
 	class.Name = p.curToken.Literal
 
+	// Check for inheritance
+	if p.peekTokenIs(lexer.INHERITS) {
+		p.nextToken() // Skip to INHERITS
+		p.nextToken() // Skip INHERITS
+
+		// Parse superclass name
+		if !p.curTokenIs(lexer.IDENT) {
+			p.addError(fmt.Sprintf("Expected identifier after 'inherits', got %s", p.curToken.Type))
+			return nil
+		}
+
+		class.Parent = p.curToken.Literal
+		p.nextToken() // Move past superclass name
+	}
+
 	// Expect opening brace
-	if !p.expectPeek(lexer.LBRACE) {
+	if !p.curTokenIs(lexer.LBRACE) {
+		p.addError(fmt.Sprintf("Expected '{' after class name, got %s", p.curToken.Type))
 		return nil
 	}
 
@@ -429,11 +459,13 @@ func (p *Parser) parseClassDefinition() ast.Node {
 		}
 	}
 
-	// Skip closing brace
+	// Expect closing brace
 	if !p.curTokenIs(lexer.RBRACE) {
-		p.addError(fmt.Sprintf("Expected closing brace, got %s", p.curToken.Type))
+		p.addError(fmt.Sprintf("Expected '}' at end of class definition, got %s", p.curToken.Type))
 		return nil
 	}
+
+	// Skip closing brace
 	p.nextToken()
 
 	return class
