@@ -1,0 +1,18 @@
+# Test file with intentional whitespace
+
+a
+=
+5
+
+b=10
+
+c =
+  a
+  +
+  b
+
+puts(
+  "The result is: "
+  +
+  c
+)

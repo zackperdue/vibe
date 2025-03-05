@@ -1,0 +1,24 @@
+# Test with weird whitespace patterns
+x=5y      =
+   10
+
+
+z=x+
+y
+
+# No spaces around operators
+result=x+y*z/2
+
+# Functions with weird spacing
+puts(
+   x)
+puts
+(y)
+puts(z
+)
+
+# Complex expression with mixed whitespace
+puts("x="
++x+
+" y="+y+" z="+
+z+" result="+result)

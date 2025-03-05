@@ -1,0 +1,24 @@
+// Extreme test case with multiple weird syntax patterns
+// Testing unusual token adjacency, minimal whitespace, and mixed styles
+
+a=1// No space before comment
+b= 2 // Space after equals but before value
+c= a+b*3//Complex expression with no spaces
+ d    =
+     a  +
+         b//Multi-line assignment with odd whitespace
+result=(a+b)*(c+d)//Complex parenthesized expression
+
+// Function calls with odd formatting
+puts("Results:"
++"a="+a+
+"b="+b+
+"c="
++c+
+"d="+d)
+
+// Complex expression with mixed format
+puts(
+  (a+b)*
+  (c/d)
+)
