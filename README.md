@@ -499,3 +499,28 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 - Inspired by various programming language implementations
 - Built with Go's excellent standard library
+
+## Test Organization
+
+Tests in this project follow Go's standard convention:
+
+- **Component Tests**: Tests are co-located with the code they test in the same package
+  - For example, lexer tests are in the `lexer` directory alongside the implementation
+  - Parser tests are in the `parser` directory
+  - Interpreter tests are in the `interpreter` directory
+
+- **Integration Tests**: Tests that verify the interaction between multiple components are kept separate in the `tests/integration` directory
+
+To run tests:
+
+```bash
+# Run all tests
+./run_go_tests.sh
+
+# Run tests for a specific package
+go test ./lexer
+go test ./parser
+go test ./interpreter
+```
+
+Note: Some legacy tests still exist in the `tests/` directory and are gradually being moved to their implementation directories.

@@ -34,14 +34,20 @@ func TestArrayLiteralParsing(t *testing.T) {
 			t.Fatalf("program does not have 1 statement. got=%d", len(program.Statements))
 		}
 
-		expr, ok := program.Statements[0].(*ast.ExpressionStatement)
-		if !ok {
-			t.Fatalf("program.Statements[0] is not ast.ExpressionStatement. got=%T", program.Statements[0])
-		}
-
-		array, ok := expr.Expression.(*ast.ArrayLiteral)
-		if !ok {
-			t.Fatalf("expr is not ast.ArrayLiteral. got=%T", expr.Expression)
+		// The parser now returns ArrayLiteral directly instead of wrapping it in ExpressionStatement
+		var array *ast.ArrayLiteral
+		if stmt, ok := program.Statements[0].(*ast.ExpressionStatement); ok {
+			// Handle legacy behavior where it might be wrapped in ExpressionStatement
+			array, ok = stmt.Expression.(*ast.ArrayLiteral)
+			if !ok {
+				t.Fatalf("expr is not ast.ArrayLiteral. got=%T", stmt.Expression)
+			}
+		} else {
+			// Handle new behavior where it's a direct ArrayLiteral
+			array, ok = program.Statements[0].(*ast.ArrayLiteral)
+			if !ok {
+				t.Fatalf("program.Statements[0] is not ast.ArrayLiteral. got=%T", program.Statements[0])
+			}
 		}
 
 		if len(array.Elements) != len(tt.expected) {
@@ -69,14 +75,20 @@ func TestStringLiteralParsing(t *testing.T) {
 		t.Fatalf("program does not have 1 statement. got=%d", len(program.Statements))
 	}
 
-	stmt, ok := program.Statements[0].(*ast.ExpressionStatement)
-	if !ok {
-		t.Fatalf("program.Statements[0] is not ast.ExpressionStatement. got=%T", program.Statements[0])
-	}
-
-	literal, ok := stmt.Expression.(*ast.StringLiteral)
-	if !ok {
-		t.Fatalf("exp not *ast.StringLiteral. got=%T", stmt.Expression)
+	// The parser now returns StringLiteral directly instead of wrapping it in ExpressionStatement
+	var literal *ast.StringLiteral
+	if stmt, ok := program.Statements[0].(*ast.ExpressionStatement); ok {
+		// Handle legacy behavior where it might be wrapped in ExpressionStatement
+		literal, ok = stmt.Expression.(*ast.StringLiteral)
+		if !ok {
+			t.Fatalf("exp not *ast.StringLiteral. got=%T", stmt.Expression)
+		}
+	} else {
+		// Handle new behavior where it's a direct StringLiteral
+		literal, ok = program.Statements[0].(*ast.StringLiteral)
+		if !ok {
+			t.Fatalf("program.Statements[0] is not ast.StringLiteral. got=%T", program.Statements[0])
+		}
 	}
 
 	if literal.Value != "hello world" {
@@ -101,15 +113,20 @@ func TestIfExpression(t *testing.T) {
 			len(program.Statements))
 	}
 
-	stmt, ok := program.Statements[0].(*ast.ExpressionStatement)
-	if !ok {
-		t.Fatalf("program.Statements[0] is not ast.ExpressionStatement. got=%T",
-			program.Statements[0])
-	}
-
-	exp, ok := stmt.Expression.(*ast.IfExpression)
-	if !ok {
-		t.Fatalf("stmt.Expression is not ast.IfExpression. got=%T", stmt.Expression)
+	// The parser now returns IfStmt directly instead of wrapping it in ExpressionStatement
+	var exp *ast.IfStmt
+	if stmt, ok := program.Statements[0].(*ast.ExpressionStatement); ok {
+		// Handle legacy behavior where it might be wrapped in ExpressionStatement
+		exp, ok = stmt.Expression.(*ast.IfStmt)
+		if !ok {
+			t.Fatalf("stmt.Expression is not ast.IfStmt. got=%T", stmt.Expression)
+		}
+	} else {
+		// Handle new behavior where it's a direct IfStmt
+		exp, ok = program.Statements[0].(*ast.IfStmt)
+		if !ok {
+			t.Fatalf("program.Statements[0] is not ast.IfStmt. got=%T", program.Statements[0])
+		}
 	}
 
 	if !testInfixExpression(t, exp.Condition, "x", "<", "y") {
@@ -121,14 +138,23 @@ func TestIfExpression(t *testing.T) {
 			len(exp.Consequence.Statements))
 	}
 
-	consequence, ok := exp.Consequence.Statements[0].(*ast.ExpressionStatement)
-	if !ok {
-		t.Fatalf("exp.Consequence.Statements[0] is not ast.ExpressionStatement. got=%T",
-			exp.Consequence.Statements[0])
+	// The consequence may now contain a direct Identifier instead of an ExpressionStatement
+	var consequenceValue ast.Node = exp.Consequence.Statements[0]
+	if exprStmt, ok := consequenceValue.(*ast.ExpressionStatement); ok {
+		consequenceValue = exprStmt.Expression
 	}
 
-	if !testIdentifier(t, consequence.Expression, "x") {
-		return
+	// Check for identifier "x" either way
+	foundX := false
+	if ident, ok := consequenceValue.(*ast.Identifier); ok {
+		if ident.Name == "x" {
+			foundX = true
+		}
+	}
+
+	if !foundX {
+		t.Fatalf("Expected consequence to contain identifier 'x'. got=%T: %s",
+			consequenceValue, consequenceValue.String())
 	}
 
 	if len(exp.Alternative.Statements) != 1 {
@@ -136,22 +162,31 @@ func TestIfExpression(t *testing.T) {
 			len(exp.Alternative.Statements))
 	}
 
-	alternative, ok := exp.Alternative.Statements[0].(*ast.ExpressionStatement)
-	if !ok {
-		t.Fatalf("exp.Alternative.Statements[0] is not ast.ExpressionStatement. got=%T",
-			exp.Alternative.Statements[0])
+	// The alternative may now contain a direct Identifier instead of an ExpressionStatement
+	var alternativeValue ast.Node = exp.Alternative.Statements[0]
+	if exprStmt, ok := alternativeValue.(*ast.ExpressionStatement); ok {
+		alternativeValue = exprStmt.Expression
 	}
 
-	if !testIdentifier(t, alternative.Expression, "y") {
-		return
+	// Check for identifier "y" either way
+	foundY := false
+	if ident, ok := alternativeValue.(*ast.Identifier); ok {
+		if ident.Name == "y" {
+			foundY = true
+		}
+	}
+
+	if !foundY {
+		t.Fatalf("Expected alternative to contain identifier 'y'. got=%T: %s",
+			alternativeValue, alternativeValue.String())
 	}
 }
 
 // Helper functions for testing expressions
-func testInfixExpression(t *testing.T, exp ast.Expression, left interface{}, operator string, right interface{}) bool {
-	opExp, ok := exp.(*ast.InfixExpression)
+func testInfixExpression(t *testing.T, exp ast.Node, left interface{}, operator string, right interface{}) bool {
+	opExp, ok := exp.(*ast.BinaryExpr)
 	if !ok {
-		t.Errorf("exp is not ast.InfixExpression. got=%T(%s)", exp, exp)
+		t.Errorf("exp is not ast.BinaryExpr. got=%T(%s)", exp, exp)
 		return false
 	}
 
@@ -171,7 +206,7 @@ func testInfixExpression(t *testing.T, exp ast.Expression, left interface{}, ope
 	return true
 }
 
-func testLiteralExpression(t *testing.T, exp ast.Expression, expected interface{}) bool {
+func testLiteralExpression(t *testing.T, exp ast.Node, expected interface{}) bool {
 	switch v := expected.(type) {
 	case int:
 		return testIntegerLiteral(t, exp, int64(v))
@@ -186,40 +221,40 @@ func testLiteralExpression(t *testing.T, exp ast.Expression, expected interface{
 	return false
 }
 
-func testIntegerLiteral(t *testing.T, il ast.Expression, value int64) bool {
-	integ, ok := il.(*ast.IntegerLiteral)
+func testIntegerLiteral(t *testing.T, il ast.Node, value int64) bool {
+	integ, ok := il.(*ast.NumberLiteral)
 	if !ok {
-		t.Errorf("il not *ast.IntegerLiteral. got=%T", il)
+		t.Errorf("il not *ast.NumberLiteral. got=%T", il)
 		return false
 	}
 
-	if integ.Value != value {
-		t.Errorf("integ.Value not %d. got=%d", value, integ.Value)
+	if integ.Value != float64(value) {
+		t.Errorf("integ.Value not %d. got=%f", value, integ.Value)
 		return false
 	}
 
 	return true
 }
 
-func testIdentifier(t *testing.T, exp ast.Expression, value string) bool {
+func testIdentifier(t *testing.T, exp ast.Node, value string) bool {
 	ident, ok := exp.(*ast.Identifier)
 	if !ok {
 		t.Errorf("exp not *ast.Identifier. got=%T", exp)
 		return false
 	}
 
-	if ident.Value != value {
-		t.Errorf("ident.Value not %s. got=%s", value, ident.Value)
+	if ident.Name != value {
+		t.Errorf("ident.Name not %s. got=%s", value, ident.Name)
 		return false
 	}
 
 	return true
 }
 
-func testBooleanLiteral(t *testing.T, exp ast.Expression, value bool) bool {
-	bo, ok := exp.(*ast.Boolean)
+func testBooleanLiteral(t *testing.T, exp ast.Node, value bool) bool {
+	bo, ok := exp.(*ast.BooleanLiteral)
 	if !ok {
-		t.Errorf("exp not *ast.Boolean. got=%T", exp)
+		t.Errorf("exp not *ast.BooleanLiteral. got=%T", exp)
 		return false
 	}
 

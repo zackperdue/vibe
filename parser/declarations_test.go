@@ -246,10 +246,20 @@ func TestVariableDeclarationWithoutType(t *testing.T) {
 	}
 }
 
-func testVariableDeclaration(t *testing.T, s ast.Statement, name string) bool {
+func testVariableDeclaration(t *testing.T, s ast.Node, name string) bool {
+	// The parser now creates Assignment nodes for simple assignments like x = 5
+	if assignment, ok := s.(*ast.Assignment); ok {
+		if assignment.Name != name {
+			t.Errorf("assignment.Name not '%s'. got=%s", name, assignment.Name)
+			return false
+		}
+		return true
+	}
+
+	// For variable declarations with type annotations, it creates VariableDecl nodes
 	varDecl, ok := s.(*ast.VariableDecl)
 	if !ok {
-		t.Errorf("s not *ast.VariableDecl. got=%T", s)
+		t.Errorf("s not *ast.VariableDecl or *ast.Assignment. got=%T", s)
 		return false
 	}
 
