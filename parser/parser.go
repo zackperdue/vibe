@@ -494,6 +494,12 @@ func (p *Parser) parseTypeAnnotation() *ast.TypeAnnotation {
 
 		// Parse type parameters until we hit the closing '>'
 		for !p.curTokenIs(lexer.GT) && !p.curTokenIs(lexer.EOF) {
+			// Skip any commas
+			if p.curTokenIs(lexer.COMMA) {
+				p.nextToken() // Advance past the comma
+				continue
+			}
+
 			// Parse the type parameter, which could be a simple type or another generic type
 			var param ast.Node
 
@@ -515,10 +521,9 @@ func (p *Parser) parseTypeAnnotation() *ast.TypeAnnotation {
 			// Add the parameter to our list
 			typeParams = append(typeParams, param)
 
-			// If next token is a comma, skip it and continue
+			// If next token is a comma, skip it
 			if p.peekTokenIs(lexer.COMMA) {
 				p.nextToken() // Advance to the comma
-				p.nextToken() // Advance past the comma
 			}
 		}
 
