@@ -60,6 +60,12 @@ func (p *Parser) parseExpression(precedence int) ast.Node {
 		// Handle anonymous function expressions by using the updated parseFunctionDefinition
 		leftExp = p.parseFunctionDefinition()
 		return leftExp // Return early as parseFunctionDefinition already advances tokens
+	case lexer.ASSIGN:
+		// Handle assignment operator in expression context
+		// This is likely an error in the source code, but we'll create a dummy node to continue parsing
+		p.addError(fmt.Sprintf("Unexpected assignment operator in expression context at line %d, column %d",
+			p.curToken.Line, p.curToken.Column))
+		leftExp = &ast.Identifier{Name: "="} // Create a dummy identifier
 
 	// Handle keywords that shouldn't be used in expression contexts
 	case lexer.DO, lexer.END, lexer.INHERITS, lexer.ELSE, lexer.ELSIF,

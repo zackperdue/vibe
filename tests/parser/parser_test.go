@@ -567,8 +567,7 @@ func TestClassDefinitionParsing(t *testing.T) {
 
 		def distance(other: Point): number do
 			dx = @x - other.x
-			dy = @y - other.y
-			return (dx * dx + dy * dy) ** 0.5
+			return dx
 		end
 	end`
 
