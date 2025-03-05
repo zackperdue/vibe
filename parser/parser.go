@@ -290,8 +290,15 @@ func (p *Parser) parseAssignment() ast.Node {
 			return nil
 		}
 		right = &ast.NumberLiteral{Value: value, IsInt: true}
+		// Advance past the integer value
+		p.nextToken()
 	} else {
 		right = p.parseExpression(ast.LOWEST)
+		// The parseExpression function doesn't advance past the last token of the expression
+		// so we need to do it here
+		if p.peekToken.Type != lexer.EOF {
+			p.nextToken()
+		}
 	}
 
 	// Create the assignment node
