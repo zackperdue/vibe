@@ -115,8 +115,29 @@ func (p *Parser) parseBlockStatements(endTokens ...lexer.TokenType) *ast.BlockSt
 			break
 		}
 
-		// Advance to the next token
-		p.nextToken()
+		// Check if we need to advance the token
+		// This ensures we don't miss any tokens between statements
+		if p.curToken == startToken && p.peekToken == startPeekToken {
+			// We didn't consume any tokens, so advance to avoid an infinite loop
+			p.nextToken()
+		}
+
+		// Skip any semicolons between statements
+		if p.curTokenIs(lexer.SEMICOLON) {
+			p.nextToken()
+		}
+
+		// Make sure we've moved to a new statement by checking for a new line
+		// or ensuring we've moved to a different token than where we started
+		currentLine := p.curToken.Line
+		previousLine := startToken.Line
+
+		// If we're still on the same line and not at an end token, we might need to advance
+		// more to reach the next statement
+		if currentLine == previousLine && !containsTokenType(p.curToken.Type, endTokens) &&
+		   !p.isStartOfStatement() {
+			p.nextToken()
+		}
 	}
 
 	return block

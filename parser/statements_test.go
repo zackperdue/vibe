@@ -180,9 +180,6 @@ func TestForLoopStatement(t *testing.T) {
 		t.Errorf("array.Elements does not contain 3 elements. got=%d", len(arrayLit.Elements))
 	}
 
-	// Skip testing individual elements for now
-
-	// The body can now contain direct node statements instead of wrappers
 	// Check if the body has statements
 	if len(stmt.Body.Statements) == 0 {
 		t.Fatalf("For loop body has no statements")
@@ -191,14 +188,6 @@ func TestForLoopStatement(t *testing.T) {
 	// Try to find a variable or operation related to x and i
 	found := false
 	for _, bodyStmt := range stmt.Body.Statements {
-		// Look for VariableDecl
-		if varDecl, ok := bodyStmt.(*ast.VariableDecl); ok {
-			if varDecl.Name == "x" {
-				found = true
-				break
-			}
-		}
-
 		// Look for Assignment
 		if assignment, ok := bodyStmt.(*ast.Assignment); ok {
 			if assignment.Name == "x" {
@@ -206,10 +195,47 @@ func TestForLoopStatement(t *testing.T) {
 				break
 			}
 		}
+	}
 
-		// The body might directly contain an Identifier for x
-		if ident, ok := bodyStmt.(*ast.Identifier); ok {
-			if ident.Name == "x" || ident.Name == "i" {
+	if !found {
+		t.Errorf("Expected body to contain an assignment related to 'x', but none found")
+	}
+}
+
+// Test for loop with variable assignment
+func TestForLoopWithVariableAssignment(t *testing.T) {
+	input := `for i in [1, 2, 3] do
+		x = i
+	end`
+
+	l := lexer.New(input)
+	p := New(l)
+	program, err := p.Parse()
+
+	if err != nil {
+		t.Fatalf("parser error: %v", err)
+	}
+
+	if len(program.Statements) != 1 {
+		t.Fatalf("program.Statements does not contain 1 statement. got=%d",
+			len(program.Statements))
+	}
+
+	stmt, ok := program.Statements[0].(*ast.ForStmt)
+	if !ok {
+		t.Fatalf("stmt is not ast.ForStmt. got=%T", program.Statements[0])
+	}
+
+	// Check if the body has statements
+	if len(stmt.Body.Statements) == 0 {
+		t.Fatalf("For loop body has no statements")
+	}
+
+	// Verify assignment exists
+	found := false
+	for _, bodyStmt := range stmt.Body.Statements {
+		if assignment, ok := bodyStmt.(*ast.Assignment); ok {
+			if assignment.Name == "x" {
 				found = true
 				break
 			}
@@ -217,6 +243,117 @@ func TestForLoopStatement(t *testing.T) {
 	}
 
 	if !found {
-		t.Errorf("Expected body to contain a statement related to 'x', but none found")
+		t.Errorf("Expected body to contain an assignment to 'x', but none found")
+	}
+}
+
+// Test for loop with compound assignment (+=)
+func TestForLoopWithCompoundAssignment(t *testing.T) {
+	input := `for i in [1, 2, 3] do
+		sum += i
+	end`
+
+	l := lexer.New(input)
+	p := New(l)
+	program, err := p.Parse()
+
+	if err != nil {
+		t.Fatalf("parser error: %v", err)
+	}
+
+	if len(program.Statements) != 1 {
+		t.Fatalf("program.Statements does not contain 1 statement. got=%d",
+			len(program.Statements))
+	}
+
+	stmt, ok := program.Statements[0].(*ast.ForStmt)
+	if !ok {
+		t.Fatalf("stmt is not ast.ForStmt. got=%T", program.Statements[0])
+	}
+
+	// Check if the body has statements
+	if len(stmt.Body.Statements) == 0 {
+		t.Fatalf("For loop body has no statements")
+	}
+
+	// Try to find a compound assignment (+=)
+	found := false
+	for _, bodyStmt := range stmt.Body.Statements {
+		if assignment, ok := bodyStmt.(*ast.Assignment); ok {
+			if assignment.Name == "sum" {
+				// Verify this is a binary expression (from compound assignment)
+				if binaryExpr, ok := assignment.Value.(*ast.BinaryExpr); ok {
+					if binaryExpr.Operator == "+" {
+						found = true
+						break
+					}
+				}
+			}
+		}
+	}
+
+	if !found {
+		t.Errorf("Expected body to contain a compound assignment (sum += i), but none found")
+	}
+}
+
+// Test for loop with multiple compound assignments
+func TestForLoopWithMultipleCompoundAssignments(t *testing.T) {
+	input := `for i in [1, 2, 3] do
+		sum += i
+		product *= i
+	end`
+
+	l := lexer.New(input)
+	p := New(l)
+	program, err := p.Parse()
+
+	if err != nil {
+		t.Fatalf("parser error: %v", err)
+	}
+
+	if len(program.Statements) != 1 {
+		t.Fatalf("program.Statements does not contain 1 statement. got=%d",
+			len(program.Statements))
+	}
+
+	stmt, ok := program.Statements[0].(*ast.ForStmt)
+	if !ok {
+		t.Fatalf("stmt is not ast.ForStmt. got=%T", program.Statements[0])
+	}
+
+	// Check if the body has statements
+	if len(stmt.Body.Statements) < 2 {
+		t.Fatalf("For loop body should have at least 2 statements, got=%d", len(stmt.Body.Statements))
+	}
+
+	// Try to find both compound assignments
+	foundSum := false
+	foundProduct := false
+
+	for _, bodyStmt := range stmt.Body.Statements {
+		if assignment, ok := bodyStmt.(*ast.Assignment); ok {
+			if assignment.Name == "sum" {
+				if binaryExpr, ok := assignment.Value.(*ast.BinaryExpr); ok {
+					if binaryExpr.Operator == "+" {
+						foundSum = true
+					}
+				}
+			} else if assignment.Name == "product" {
+				if binaryExpr, ok := assignment.Value.(*ast.BinaryExpr); ok {
+					if binaryExpr.Operator == "*" {
+						foundProduct = true
+					}
+				}
+			}
+		}
+	}
+
+	if !foundSum {
+		t.Errorf("Expected body to contain a compound assignment (sum += i), but none found")
+	}
+
+	if !foundProduct {
+		t.Errorf("Expected body to contain a compound assignment (product *= i), but none found")
 	}
 }

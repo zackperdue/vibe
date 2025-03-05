@@ -181,6 +181,14 @@ func (p *Parser) parseStatement() ast.Node {
 		if p.curTokenIs(lexer.IDENT) && p.peekTokenIs(lexer.ASSIGN) {
 			return p.parseAssignment()
 		}
+		// Check for compound assignment (a += 1)
+		if p.curTokenIs(lexer.IDENT) && (p.peekTokenIs(lexer.PLUS_ASSIGN) ||
+		                                p.peekTokenIs(lexer.MINUS_ASSIGN) ||
+		                                p.peekTokenIs(lexer.MUL_ASSIGN) ||
+		                                p.peekTokenIs(lexer.DIV_ASSIGN) ||
+		                                p.peekTokenIs(lexer.MOD_ASSIGN)) {
+			return p.parseCompoundAssignment()
+		}
 		// Otherwise, it's an expression statement
 		return p.parseExpressionStatement()
 	}
@@ -308,6 +316,70 @@ func (p *Parser) parseAssignment() ast.Node {
 	}
 
 	fmt.Printf("DEBUG PARSER: Parsed assignment %s = %v\n", left.Name, right)
+
+	// Optional semicolon
+	if p.peekTokenIs(lexer.SEMICOLON) {
+		p.nextToken()
+	}
+
+	return assignment
+}
+
+// parseCompoundAssignment parses a compound assignment statement like x += 1
+func (p *Parser) parseCompoundAssignment() ast.Node {
+	fmt.Printf("DEBUG PARSER: parseCompoundAssignment starting with token: %+v\n", p.curToken)
+
+	// Parse the left side (identifier)
+	left := &ast.Identifier{Name: p.curToken.Literal}
+
+	// Save the variable name
+	name := p.curToken.Literal
+
+	// Skip to the compound operator
+	p.nextToken()
+
+	// Save the operator type
+	var operator string
+
+	// Convert compound operator to regular operator
+	switch p.curToken.Type {
+	case lexer.PLUS_ASSIGN:
+		operator = "+"
+	case lexer.MINUS_ASSIGN:
+		operator = "-"
+	case lexer.MUL_ASSIGN:
+		operator = "*"
+	case lexer.DIV_ASSIGN:
+		operator = "/"
+	case lexer.MOD_ASSIGN:
+		operator = "%"
+	default:
+		p.addError(fmt.Sprintf("Unexpected compound assignment operator: %s", p.curToken.Type))
+		return nil
+	}
+
+	// Skip the compound operator
+	p.nextToken()
+
+	fmt.Printf("DEBUG PARSER: After compound operator, current token is: %+v\n", p.curToken)
+
+	// Parse the right side (value)
+	right := p.parseExpression(ast.LOWEST)
+
+	// Create a binary expression for the operation (e.g., x + 1)
+	binaryExpr := &ast.BinaryExpr{
+		Left:     left,
+		Operator: operator,
+		Right:    right,
+	}
+
+	// Create the assignment node (e.g., x = x + 1)
+	assignment := &ast.Assignment{
+		Name:  name,
+		Value: binaryExpr,
+	}
+
+	fmt.Printf("DEBUG PARSER: Parsed compound assignment %s %s= %v\n", name, operator, right)
 
 	// Optional semicolon
 	if p.peekTokenIs(lexer.SEMICOLON) {
