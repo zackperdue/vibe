@@ -95,9 +95,8 @@ func (p *Parser) parseProgram() *ast.Program {
 		fmt.Printf("DEBUG: Parsing next statement, current token: '%s' (Type: %s, Line: %d, Col: %d)\n",
 			p.curToken.Literal, p.curToken.Type, p.curToken.Line, p.curToken.Column)
 
-		// Skip semicolons between statements
-		if p.curTokenIs(lexer.SEMICOLON) {
-			p.nextToken()
+		// Report error for semicolons instead of skipping them
+		if p.reportSemicolonError() {
 			continue
 		}
 
@@ -135,7 +134,9 @@ func (p *Parser) parseProgram() *ast.Program {
 		// Move to the next token to start parsing the next statement
 		// This should skip any tokens that weren't consumed by the parser
 		if p.curTokenIs(lexer.SEMICOLON) {
-			p.nextToken() // Skip the semicolon before moving to the next statement
+			p.addError(fmt.Sprintf("Unexpected semicolon at line %d, column %d. Vibe syntax does not allow semicolons.",
+				p.curToken.Line, p.curToken.Column))
+			p.nextToken() // Skip the semicolon to continue parsing
 		}
 	}
 
@@ -258,10 +259,8 @@ func (p *Parser) parseExpressionStatement() ast.Node {
 		Expression: p.parseExpression(ast.LOWEST),
 	}
 
-	// Optional semicolon
-	if p.peekTokenIs(lexer.SEMICOLON) {
-		p.nextToken()
-	}
+	// Check for and report a semicolon error
+	p.reportSemicolonError()
 
 	return stmt
 }
@@ -301,10 +300,8 @@ func (p *Parser) parseLetStatement() ast.Node {
 	// Parse value expression
 	stmt.Value = p.parseExpression(ast.LOWEST)
 
-	// Optional semicolon
-	if p.peekTokenIs(lexer.SEMICOLON) {
-		p.nextToken()
-	}
+	// Check for and report semicolon errors
+	p.reportSemicolonError()
 
 	return stmt
 }
@@ -316,15 +313,18 @@ func (p *Parser) parseReturnStatement() ast.Node {
 	// Skip 'return' keyword
 	p.nextToken()
 
-	// Parse return value (if any)
-	if !p.curTokenIs(lexer.SEMICOLON) {
+	// Check for semicolon immediately after 'return' keyword
+	if p.curTokenIs(lexer.SEMICOLON) {
+		p.addError(fmt.Sprintf("Unexpected semicolon at line %d, column %d. Vibe syntax does not allow semicolons.",
+			p.curToken.Line, p.curToken.Column))
+		p.nextToken() // Skip the semicolon
+	} else {
+		// Parse return value
 		stmt.Value = p.parseExpression(ast.LOWEST)
 	}
 
-	// Optional semicolon
-	if p.peekTokenIs(lexer.SEMICOLON) {
-		p.nextToken()
-	}
+	// Check for and report semicolon errors
+	p.reportSemicolonError()
 
 	return stmt
 }
@@ -375,10 +375,8 @@ func (p *Parser) parseAssignment() ast.Node {
 
 	fmt.Printf("DEBUG PARSER: Parsed assignment %s = %v\n", left.Name, right)
 
-	// Optional semicolon
-	if p.peekTokenIs(lexer.SEMICOLON) {
-		p.nextToken()
-	}
+	// Check for and report semicolon errors
+	p.reportSemicolonError()
 
 	return assignment
 }
@@ -439,10 +437,8 @@ func (p *Parser) parseCompoundAssignment() ast.Node {
 
 	fmt.Printf("DEBUG PARSER: Parsed compound assignment %s %s= %v\n", name, operator, right)
 
-	// Optional semicolon
-	if p.peekTokenIs(lexer.SEMICOLON) {
-		p.nextToken()
-	}
+	// Check for and report semicolon errors
+	p.reportSemicolonError()
 
 	return assignment
 }
@@ -523,10 +519,8 @@ func (p *Parser) parseRequireStatement() ast.Node {
 
 	stmt.Path = p.curToken.Literal
 
-	// Optional semicolon
-	if p.peekTokenIs(lexer.SEMICOLON) {
-		p.nextToken()
-	}
+	// Check for and report semicolon errors
+	p.reportSemicolonError()
 
 	// Mark that we've seen a require statement
 	p.seenNonRequireStmt = true
@@ -733,10 +727,29 @@ func (p *Parser) parseInstanceVarAssignment() ast.Node {
 
 	fmt.Printf("DEBUG PARSER: Parsed instance variable assignment @%s = %v\n", name, right)
 
-	// Optional semicolon
-	if p.peekTokenIs(lexer.SEMICOLON) {
-		p.nextToken()
-	}
+	// Check for and report semicolon errors
+	p.reportSemicolonError()
 
 	return assignment
+}
+
+// reportSemicolonError checks if the current or peek token is a semicolon
+// and reports an error if found. It returns true if a semicolon was found and reported.
+func (p *Parser) reportSemicolonError() bool {
+	if p.curTokenIs(lexer.SEMICOLON) {
+		p.addError(fmt.Sprintf("Unexpected semicolon at line %d, column %d. Vibe syntax does not allow semicolons.",
+			p.curToken.Line, p.curToken.Column))
+		p.nextToken() // Skip the semicolon to continue parsing
+		return true
+	}
+
+	if p.peekTokenIs(lexer.SEMICOLON) {
+		p.addError(fmt.Sprintf("Unexpected semicolon at line %d, column %d. Vibe syntax does not allow semicolons.",
+			p.peekToken.Line, p.peekToken.Column))
+		p.nextToken() // Move to the semicolon
+		p.nextToken() // Skip past the semicolon
+		return true
+	}
+
+	return false
 }

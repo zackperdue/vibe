@@ -70,11 +70,11 @@ func (p *Parser) parseExpression(precedence int) ast.Node {
 	// Handle keywords that shouldn't be used in expression contexts
 	case lexer.DO, lexer.END, lexer.INHERITS, lexer.ELSE, lexer.ELSIF,
 		 lexer.WHILE, lexer.FOR, lexer.IN, lexer.CLASS, lexer.RETURN, lexer.REQUIRE:
-		// These keywords should only be used in their specific control structure contexts
+		// These keywords should not be used in expression contexts
 		p.addError(fmt.Sprintf("Unexpected '%s' keyword in expression context at line %d, column %d",
 			p.curToken.Literal, p.curToken.Line, p.curToken.Column))
 		// Create a dummy identifier to allow parsing to continue
-		leftExp = &ast.Identifier{Name: p.curToken.Literal}
+		leftExp = &ast.Identifier{Name: "error"}
 
 	case lexer.LPAREN:
 		p.nextToken() // Skip the opening parenthesis

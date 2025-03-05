@@ -66,6 +66,14 @@ func (p *Parser) parseBlockStatements(endTokens ...lexer.TokenType) *ast.BlockSt
 
 	// Continue parsing statements until we hit one of the end tokens or EOF
 	for !p.curTokenIs(lexer.EOF) && !containsTokenType(p.curToken.Type, endTokens) {
+		// Report error if we encounter a semicolon
+		if p.curTokenIs(lexer.SEMICOLON) {
+			p.addError(fmt.Sprintf("Unexpected semicolon at line %d, column %d. Vibe syntax does not allow semicolons.",
+				p.curToken.Line, p.curToken.Column))
+			p.nextToken() // Skip the semicolon to continue parsing
+			continue
+		}
+
 		// Store current token position in case we need to recover
 		startToken := p.curToken
 		startPeekToken := p.peekToken
@@ -75,93 +83,38 @@ func (p *Parser) parseBlockStatements(endTokens ...lexer.TokenType) *ast.BlockSt
 		// Special case for assignments
 		if p.curTokenIs(lexer.IDENT) && p.peekTokenIs(lexer.ASSIGN) {
 			stmt = p.parseAssignment()
+		} else if p.curTokenIs(lexer.IDENT) && (p.peekTokenIs(lexer.PLUS_ASSIGN) ||
+			p.peekTokenIs(lexer.MINUS_ASSIGN) ||
+			p.peekTokenIs(lexer.MUL_ASSIGN) ||
+			p.peekTokenIs(lexer.DIV_ASSIGN) ||
+			p.peekTokenIs(lexer.MOD_ASSIGN)) {
+			// Handle compound assignments
+			stmt = p.parseCompoundAssignment()
 		} else if p.curTokenIs(lexer.AT) && p.peekTokenIs(lexer.IDENT) {
 			// Special case for instance variable assignments
 			stmt = p.parseInstanceVarAssignment()
-		} else if p.curToken.Literal == "dy" && p.peekToken.Type == lexer.ASSIGN {
-			// Special case for the "dy = @y - other.y" pattern in the test
-			// Create an assignment node manually
-			name := p.curToken.Literal
-			p.nextToken() // Skip to =
-			p.nextToken() // Skip =
-
-			// Parse the right side expression
-			right := p.parseExpression(ast.LOWEST)
-
-			// Create the assignment
-			stmt = &ast.Assignment{
-				Name:  name,
-				Value: right,
+		} else if p.curTokenIs(lexer.IDENT) && p.peekTokenIs(lexer.LPAREN) {
+			// Special case for function calls
+			expr := p.parseExpression(ast.LOWEST)
+			if expr != nil {
+				stmt = &ast.ExpressionStatement{Expression: expr}
 			}
 		} else {
 			// Try to parse the statement
 			stmt = p.parseStatement()
+		}
 
-			// If statement parsing failed but we're at an identifier followed by a parenthesis,
-			// it might be a function call that failed to parse due to a missing closing parenthesis
-			if stmt == nil && startToken.Type == lexer.IDENT && startPeekToken.Type == lexer.LPAREN {
-				// Manually create a function call node
-				funcName := startToken.Literal
-
-				// Create a simple function call with no arguments
-				stmt = &ast.CallExpr{
-					Function: &ast.Identifier{Name: funcName},
-					Args:     []ast.Node{},
-				}
-
-				// Skip past the function name and opening parenthesis
-				p.nextToken() // to the opening parenthesis
-				p.nextToken() // past the opening parenthesis
-
-				// If we're not already at a closing parenthesis, we might have an argument
-				if !p.curTokenIs(lexer.RPAREN) {
-					// Try to parse one argument
-					arg := p.parseExpression(ast.LOWEST)
-					if arg != nil {
-						stmt.(*ast.CallExpr).Args = append(stmt.(*ast.CallExpr).Args, arg)
-					}
-
-					// Now skip to the next statement
-					for !p.curTokenIs(lexer.EOF) &&
-						  !containsTokenType(p.curToken.Type, endTokens) &&
-						  p.curToken.Line == startToken.Line {
-						p.nextToken()
-					}
-				}
+		// If statement parsing failed, try to recover
+		if stmt == nil {
+			// If we're still at the same token, we need to manually advance to avoid an infinite loop
+			if p.curToken == startToken && p.peekToken == startPeekToken {
+				p.addError(fmt.Sprintf("Failed to parse statement at line %d, column %d. Skipping.",
+					p.curToken.Line, p.curToken.Column))
+				p.nextToken() // Force advance to the next token
+				continue
 			}
-		}
-
-		if stmt != nil {
+		} else {
 			block.Statements = append(block.Statements, stmt)
-		}
-
-		// If we've reached an end token, don't advance any further
-		if containsTokenType(p.curToken.Type, endTokens) {
-			break
-		}
-
-		// Check if we need to advance the token
-		// This ensures we don't miss any tokens between statements
-		if p.curToken == startToken && p.peekToken == startPeekToken {
-			// We didn't consume any tokens, so advance to avoid an infinite loop
-			p.nextToken()
-		}
-
-		// Skip any semicolons between statements
-		if p.curTokenIs(lexer.SEMICOLON) {
-			p.nextToken()
-		}
-
-		// Make sure we've moved to a new statement by checking for a new line
-		// or ensuring we've moved to a different token than where we started
-		currentLine := p.curToken.Line
-		previousLine := startToken.Line
-
-		// If we're still on the same line and not at an end token, we might need to advance
-		// more to reach the next statement
-		if currentLine == previousLine && !containsTokenType(p.curToken.Type, endTokens) &&
-		   !p.isStartOfStatement() {
-			p.nextToken()
 		}
 	}
 
@@ -210,13 +163,14 @@ func (p *Parser) parseWhileStatement() ast.Node {
 
 // parseForStatement parses a for loop statement
 func (p *Parser) parseForStatement() ast.Node {
-
 	// Current token is 'for'
 	forStmt := &ast.ForStmt{}
 
-	// Skip 'for' keyword and expect an identifier for iterator
+	// Skip 'for' keyword
 	p.nextToken()
-	if p.curToken.Type != lexer.IDENT {
+
+	// Expect an identifier for iterator
+	if !p.curTokenIs(lexer.IDENT) {
 		p.addError(fmt.Sprintf("Expected identifier for iterator, got %s", p.curToken.Type))
 		return nil
 	}
@@ -237,45 +191,27 @@ func (p *Parser) parseForStatement() ast.Node {
 		return nil
 	}
 
-
-	// Create an empty block for the body
-	forStmt.Body = &ast.BlockStmt{Statements: []ast.Node{}}
-
-	// Check if we're already at END (which means we missed DO)
-	if p.curTokenIs(lexer.END) {
-		// This is a syntax error - we need a DO before END
-		p.addError(fmt.Sprintf("Expected 'do' before 'end' in for loop at line %d, column %d",
-			p.curToken.Line, p.curToken.Column))
-		return nil
-	}
-
-	// Check if current token is DO
-	if !p.curTokenIs(lexer.DO) {
+	// Expect 'do' keyword after the iterable
+	if !p.expectPeek(lexer.DO) {
 		p.addError(fmt.Sprintf("Expected 'do' after iterable, got %s at line %d, column %d",
-			p.curToken.Type, p.curToken.Line, p.curToken.Column))
+			p.peekToken.Type, p.peekToken.Line, p.peekToken.Column))
 		return nil
 	}
 
+	// Move past 'do' to the first statement in the body
+	p.nextToken()
 
-	// Check if the body is empty (do end)
-	if p.peekTokenIs(lexer.END) {
-		p.nextToken() // Move to END token
-	} else {
-		// Parse the body - this will advance to the END token
-		p.nextToken() // Move past 'do' to the first statement in the body
-		forStmt.Body = p.parseBlockStatements(lexer.END)
-	}
-
+	// Parse the body statements until we reach 'end'
+	forStmt.Body = p.parseBlockStatements(lexer.END)
 
 	// After parsing the body, we should be at 'end'
-	if !p.curTokenIs(lexer.END) {
+	if p.curTokenIs(lexer.END) {
+		// Move past 'end'
+		p.nextToken()
+	} else {
 		p.addError(fmt.Sprintf("Expected 'end' to close for loop, got %s at line %d, column %d",
 			p.curToken.Type, p.curToken.Line, p.curToken.Column))
-		return nil
 	}
-
-	p.nextToken() // Move past 'end'
-
 
 	return forStmt
 }
