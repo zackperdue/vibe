@@ -75,6 +75,9 @@ func (p *Parser) parseBlockStatements(endTokens ...lexer.TokenType) *ast.BlockSt
 		// Special case for assignments
 		if p.curTokenIs(lexer.IDENT) && p.peekTokenIs(lexer.ASSIGN) {
 			stmt = p.parseAssignment()
+		} else if p.curTokenIs(lexer.AT) && p.peekTokenIs(lexer.IDENT) {
+			// Special case for instance variable assignments
+			stmt = p.parseInstanceVarAssignment()
 		} else if p.curToken.Literal == "dy" && p.peekToken.Type == lexer.ASSIGN {
 			// Special case for the "dy = @y - other.y" pattern in the test
 			// Create an assignment node manually

@@ -218,8 +218,11 @@ func (p *Parser) parseStatement() ast.Node {
 	case lexer.TYPE:
 		return p.parseTypeDeclaration()
 	case lexer.AT:
-		// For instance variable assignments (@x = 1), we'll handle it in parseExpressionStatement
-		// which will call parseExpression, which now handles AT tokens
+		// For instance variable assignments (@x = 1)
+		if p.peekTokenIs(lexer.IDENT) && p.peekTokenIs2(lexer.ASSIGN) {
+			return p.parseInstanceVarAssignment()
+		}
+		// Otherwise treat it as an expression
 		return p.parseExpressionStatement()
 	default:
 		// Check for variable declaration with type annotation (x: int = 5)
@@ -486,20 +489,12 @@ func (p *Parser) parseClassDefinition() ast.Node {
 	// Skip 'do' keyword
 	p.nextToken()
 
-	// Parse methods
-	for !p.curTokenIs(lexer.END) && !p.curTokenIs(lexer.EOF) {
-		// Parse method
-		if p.curTokenIs(lexer.FUNCTION) {
-			method := p.parseFunctionDefinition()
-			if method != nil {
-				class.Methods = append(class.Methods, method)
-			}
-		} else {
-			// Skip tokens until we find a method definition or end
-			p.addError(fmt.Sprintf("Expected method definition, got %s", p.curToken.Type))
-			p.nextToken()
-		}
-	}
+	// Parse the class body as a block of statements
+	blockStmt := p.parseBlockStatements(lexer.END)
+
+	// Add all statements from the block to the class's methods list
+	// In Vibe, a class body can contain methods, instance variables, and other statements
+	class.Methods = blockStmt.Statements
 
 	// Expect 'end' keyword
 	if !p.curTokenIs(lexer.END) {

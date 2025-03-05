@@ -103,8 +103,6 @@ func (p *Parser) parseExpression(precedence int) ast.Node {
 		if p.curTokenIs(lexer.LBRACKET) {
 			leftExp = p.parseIndexExpression(leftExp)
 		}
-
-		return leftExp
 	case lexer.MINUS, lexer.BANG:
 		operator := p.curToken.Literal
 		p.nextToken() // Consume the operator

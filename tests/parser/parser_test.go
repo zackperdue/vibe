@@ -259,10 +259,16 @@ func TestArrayLiteralParsing(t *testing.T) {
 				tt.input, len(program.Statements))
 		}
 
-		expr, ok := program.Statements[0].(*ast.ArrayLiteral)
+		stmt, ok := program.Statements[0].(*ast.ExpressionStatement)
 		if !ok {
-			t.Fatalf("program.Statements[0] is not ast.ArrayLiteral for input %q. got=%T",
+			t.Fatalf("program.Statements[0] is not ast.ExpressionStatement for input %q. got=%T",
 				tt.input, program.Statements[0])
+		}
+
+		expr, ok := stmt.Expression.(*ast.ArrayLiteral)
+		if !ok {
+			t.Fatalf("stmt.Expression is not ast.ArrayLiteral for input %q. got=%T",
+				tt.input, stmt.Expression)
 		}
 
 		if len(expr.Elements) != len(tt.expected) {
@@ -603,6 +609,153 @@ func TestClassDefinitionParsing(t *testing.T) {
 
 	if len(classDef.Methods) != 2 {
 		t.Fatalf("classDef.Methods does not contain 2 methods. got=%d",
+			len(classDef.Methods))
+	}
+}
+
+// TestClassDefinitionBasic tests basic class definition parsing without inheritance or methods
+func TestClassDefinitionBasic(t *testing.T) {
+	input := `class Point do
+	end`
+
+	l := lexer.New(input)
+	program, errors := parser.Parse(l)
+
+	if len(errors) != 0 {
+		t.Errorf("parser has %d errors", len(errors))
+		for _, msg := range errors {
+			t.Errorf("parser error: %q", msg)
+		}
+		t.FailNow()
+	}
+
+	if len(program.Statements) != 1 {
+		t.Fatalf("program.Statements does not contain 1 statement. got=%d",
+			len(program.Statements))
+	}
+
+	classDef, ok := program.Statements[0].(*ast.ClassDef)
+	if !ok {
+		t.Fatalf("program.Statements[0] is not ast.ClassDef. got=%T",
+			program.Statements[0])
+	}
+
+	if classDef.Name != "Point" {
+		t.Errorf("classDef.Name not 'Point'. got=%q", classDef.Name)
+	}
+
+	if classDef.Parent != "" {
+		t.Errorf("classDef.Parent should be empty. got=%q", classDef.Parent)
+	}
+
+	if len(classDef.Methods) != 0 {
+		t.Fatalf("classDef.Methods should be empty. got=%d",
+			len(classDef.Methods))
+	}
+}
+
+// TestClassDefinitionWithInheritance tests class definition parsing with inheritance
+func TestClassDefinitionWithInheritance(t *testing.T) {
+	input := `class Point inherits Object do
+	end`
+
+	l := lexer.New(input)
+	program, errors := parser.Parse(l)
+
+	if len(errors) != 0 {
+		t.Errorf("parser has %d errors", len(errors))
+		for _, msg := range errors {
+			t.Errorf("parser error: %q", msg)
+		}
+		t.FailNow()
+	}
+
+	if len(program.Statements) != 1 {
+		t.Fatalf("program.Statements does not contain 1 statement. got=%d",
+			len(program.Statements))
+	}
+
+	classDef, ok := program.Statements[0].(*ast.ClassDef)
+	if !ok {
+		t.Fatalf("program.Statements[0] is not ast.ClassDef. got=%T",
+			program.Statements[0])
+	}
+
+	if classDef.Name != "Point" {
+		t.Errorf("classDef.Name not 'Point'. got=%q", classDef.Name)
+	}
+
+	if classDef.Parent != "Object" {
+		t.Errorf("classDef.Parent not 'Object'. got=%q", classDef.Parent)
+	}
+}
+
+// TestClassDefinitionWithInstanceVariables tests class definition parsing with instance variables
+func TestClassDefinitionWithInstanceVariables(t *testing.T) {
+	input := `class Point do
+		@x = 0
+		@y = 0
+	end`
+
+	l := lexer.New(input)
+	program, errors := parser.Parse(l)
+
+	if len(errors) != 0 {
+		t.Errorf("parser has %d errors", len(errors))
+		for _, msg := range errors {
+			t.Errorf("parser error: %q", msg)
+		}
+		t.FailNow()
+	}
+
+	if len(program.Statements) != 1 {
+		t.Fatalf("program.Statements does not contain 1 statement. got=%d",
+			len(program.Statements))
+	}
+
+	classDef, ok := program.Statements[0].(*ast.ClassDef)
+	if !ok {
+		t.Fatalf("program.Statements[0] is not ast.ClassDef. got=%T",
+			program.Statements[0])
+	}
+
+	if classDef.Name != "Point" {
+		t.Errorf("classDef.Name not 'Point'. got=%q", classDef.Name)
+	}
+}
+
+// TestClassDefinitionWithMethod tests class definition parsing with a method
+func TestClassDefinitionWithMethod(t *testing.T) {
+	input := `class Point do
+		def distance(): number do
+			return 0
+		end
+	end`
+
+	l := lexer.New(input)
+	program, errors := parser.Parse(l)
+
+	if len(errors) != 0 {
+		t.Errorf("parser has %d errors", len(errors))
+		for _, msg := range errors {
+			t.Errorf("parser error: %q", msg)
+		}
+		t.FailNow()
+	}
+
+	if len(program.Statements) != 1 {
+		t.Fatalf("program.Statements does not contain 1 statement. got=%d",
+			len(program.Statements))
+	}
+
+	classDef, ok := program.Statements[0].(*ast.ClassDef)
+	if !ok {
+		t.Fatalf("program.Statements[0] is not ast.ClassDef. got=%T",
+			program.Statements[0])
+	}
+
+	if len(classDef.Methods) != 1 {
+		t.Fatalf("classDef.Methods does not contain 1 method. got=%d",
 			len(classDef.Methods))
 	}
 }
