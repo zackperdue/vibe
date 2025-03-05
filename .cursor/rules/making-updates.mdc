@@ -1,0 +1,199 @@
+---
+description: Comprehensive guide for Test-Driven Development and best practices for the Vibe language project
+globs: interpreter/**/*.go, parser/**/*.go, lexer/**/*.go, tests/**/*.go
+alwaysApply: true
+---
+
+# Test-Driven Development Guidelines for the Vibe Project
+
+This document outlines the principles, workflows, and best practices for implementing features and making changes to the Vibe programming language using Test-Driven Development (TDD).
+
+## Core TDD Principles
+
+1. **Red-Green-Refactor Cycle**:
+   - **Red**: Write a failing test that defines the desired behavior.
+   - **Green**: Implement the minimal code necessary to pass the test.
+   - **Refactor**: Clean up and optimize the code while ensuring tests still pass.
+
+2. **Test First, Code Later**: Always write tests before implementing functionality.
+
+3. **Small, Incremental Changes**: Make small, focused changes that can be easily verified.
+
+4. **Continuous Testing**: Run tests frequently to catch regressions early.
+
+## Vibe Project Testing Structure
+
+### Test File Organization
+
+Tests in Go projects should follow the standard Go convention:
+
+- **Test files should be placed in the same package as the code they test**
+- **Test files should be named with the `_test.go` suffix**
+- **For example, for a file named `lexer.go`, tests should be in `lexer_test.go` in the same directory**
+
+This organization makes it clear which tests correspond to which implementation files and leverages Go's built-in testing conventions.
+
+Going forward, all new tests should follow the co-located approach, with test files placed adjacent to the files they test.
+
+## Workflow for Adding New Features
+
+1. **Feature Planning**:
+   - Clearly define the feature's requirements and expected behavior.
+   - Identify which component(s) need modification (lexer, parser, interpreter).
+
+2. **Write Feature Tests**:
+   - Create test cases that validate the expected behavior.
+   - Place tests in a `<filename>_test.go` file next to the implementation file.
+   - Ensure tests are failing for the right reasons (missing implementation).
+
+3. **Implement the Feature**:
+   - Write the minimal code needed to make tests pass.
+   - Focus on correctness first, optimization later.
+
+4. **Refine Implementation**:
+   - Refactor code to improve readability and performance.
+   - Ensure all tests continue to pass.
+
+5. **Add Documentation**:
+   - Update relevant documentation files (.mdc files in .cursor/rules).
+   - Add inline comments for complex logic.
+
+## Test Guidelines
+
+### Test Case Design
+
+1. **Completeness**:
+   - Test both valid and invalid inputs.
+   - Include edge cases and boundary conditions.
+   - Cover error handling scenarios.
+
+2. **Isolation**:
+   - Each test should verify one specific behavior.
+   - Minimize dependencies between tests.
+
+3. **Naming Convention**:
+   - Use descriptive test names that indicate what's being tested.
+   - Follow the pattern: `Test<ComponentName><Functionality>`.
+
+### Example Test Structure
+
+```go
+func TestLexerIdentifierTokenization(t *testing.T) {
+    // Setup
+    input := "myVariable"
+
+    // Execute
+    lexer := lexer.New(input)
+    token := lexer.NextToken()
+
+    // Verify
+    if token.Type != token.IDENT {
+        t.Fatalf("Expected token type to be IDENT, got %s", token.Type)
+    }
+    if token.Literal != "myVariable" {
+        t.Fatalf("Expected token literal to be 'myVariable', got %s", token.Literal)
+    }
+}
+```
+
+## Code Quality Guidelines
+
+1. **Readability**:
+   - Use descriptive variable and function names.
+   - Keep functions focused on a single responsibility.
+   - Comment complex logic and algorithms.
+
+2. **Error Handling**:
+   - Use appropriate error types and messages.
+   - Handle edge cases gracefully.
+   - Avoid panics except in truly exceptional conditions.
+
+3. **Performance Considerations**:
+   - Balance clean code with performance requirements.
+   - Document performance trade-offs.
+   - Consider resource usage (memory, CPU) for language features.
+
+4. **Consistency**:
+   - Follow Go's standard coding conventions.
+   - Maintain consistent patterns across similar components.
+   - Use consistent error messages and handling patterns.
+
+## Language Feature Implementation Process
+
+1. **Lexer Updates**:
+   - Add new token types if needed.
+   - Update lexing rules to recognize new syntax.
+   - Write lexer tests in `lexer_test.go` for the new tokens.
+
+2. **Parser Updates**:
+   - Implement parsing rules for new syntax.
+   - Create appropriate AST nodes.
+   - Write parser tests in `parser_test.go` to verify correct AST construction.
+
+3. **Interpreter Updates**:
+   - Implement evaluation logic for new AST nodes.
+   - Add any required runtime support.
+   - Write interpreter tests in `interpreter_test.go` to verify correct execution.
+
+4. **Integration Tests**:
+   - Create tests that verify the feature end-to-end.
+   - Include examples of the feature in action.
+
+## Debugging Tips
+
+1. **Test Isolation**:
+   - When a test fails, first verify it in isolation.
+   - Create minimal test cases that reproduce the issue.
+
+2. **Tracing Execution**:
+   - Add logging at key points in the execution path.
+   - For parser issues, print the AST structure.
+   - For interpreter issues, trace variable values.
+
+3. **Regression Prevention**:
+   - When fixing a bug, always add a test case that would have caught it.
+   - Run the full test suite before committing changes.
+
+## Documentation Requirements
+
+When implementing new features, update these documentation sources:
+
+1. **Code Documentation**:
+   - Add comprehensive comments to exported functions/types.
+   - Document complex algorithms and data structures.
+
+2. **Markdown Documentation**:
+   - Update relevant .mdc files in .cursor/rules.
+   - Add examples of using the new feature.
+
+3. **Test Documentation**:
+   - Include comments in test files explaining test coverage.
+   - Document test patterns and helpers.
+
+## Common Pitfalls to Avoid
+
+1. **Overengineering**: Implement the simplest solution that meets requirements first.
+
+2. **Insufficient Testing**: Ensure all edge cases and error conditions are tested.
+
+3. **Tight Coupling**: Keep components loosely coupled to allow for easier evolution.
+
+4. **Inconsistent Error Handling**: Maintain a consistent approach to errors.
+
+5. **Ignoring Performance**: Consider the performance implications of language features, especially for loops, recursion, and memory usage.
+
+## Continuous Improvement
+
+1. **Regular Refactoring**: Periodically review and refactor code for clarity and maintainability.
+
+2. **Test Coverage Analysis**: Regularly assess test coverage and add tests for uncovered code.
+
+3. **Performance Benchmarking**: Create benchmarks for critical operations to track performance over time.
+
+## External Resources
+
+For additional guidance, refer to these resources:
+
+- [Go Code Review Comments](mdc:https:/github.com/golang/go/wiki/CodeReviewComments)
+- [Test-Driven Development By Example](mdc:https:/www.amazon.com/Test-Driven-Development-Kent-Beck/dp/0321146530) by Kent Beck
+- [The Go Programming Language](mdc:https:/www.gopl.io) by Alan A. A. Donovan and Brian W. Kernighan

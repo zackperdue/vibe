@@ -1,0 +1,305 @@
+---
+description: Documentation for the Vibe language interpreter
+globs: interpreter/*.go
+alwaysApply: false
+---
+
+# Interpreter Functions Documentation
+
+This document provides a detailed overview of the interpreter functions in the Vibe programming language.
+
+## Core Value Types
+
+The interpreter implements various value types that represent runtime values in the language.
+
+### Value Interface
+```go
+type Value interface {
+	Type() string
+	Inspect() string
+	VibeType() types.Type
+}
+```
+The core interface that all value types must implement. It defines methods to get the type name, string representation, and the corresponding Vibe type.
+
+### Basic Value Types
+- `IntegerValue` - Represents integer values
+- `FloatValue` - Represents floating-point values
+- `StringValue` - Represents string values
+- `BooleanValue` - Represents boolean values
+- `NilValue` - Represents nil (null) values
+- `ReturnValue` - Wraps a value being returned from a function
+- `FunctionValue` - Represents user-defined functions
+- `ArrayValue` - Represents arrays/lists of values
+- `ClassValue` - Represents class definitions
+- `ObjectValue` - Represents instances of classes
+
+## Environment Management
+
+### Environment struct
+```go
+type Environment struct {
+	store    map[string]Value
+	types    map[string]types.Type
+	outer    *Environment
+	builtins map[string]*BuiltinFunction
+}
+```
+The Environment struct maintains variable bindings, type information, and references to outer environments for closures.
+
+### NewEnvironment
+```go
+func NewEnvironment() *Environment
+```
+Creates a new environment with empty variable and type stores.
+
+### NewEnclosedEnvironment
+```go
+func NewEnclosedEnvironment(outer *Environment) *Environment
+```
+Creates a new environment with a reference to an outer environment, supporting lexical scoping.
+
+### Get
+```go
+func (e *Environment) Get(name string) (Value, bool)
+```
+Retrieves a value from the environment by name, looking in outer environments if not found.
+
+### Set
+```go
+func (e *Environment) Set(name string, val Value) error
+```
+Sets a value in the environment, optionally checking type constraints.
+
+### SetWithType
+```go
+func (e *Environment) SetWithType(name string, val Value, typ types.Type) error
+```
+Sets a value in the environment with explicit type information.
+
+### RegisterBuiltin
+```go
+func (e *Environment) RegisterBuiltin(name string, fn func(args []Value) Value, paramTypes []types.Type, returnType types.Type)
+```
+Registers a built-in function in the environment.
+
+## Interpreter Core
+
+### Interpreter struct
+```go
+type Interpreter struct {
+	env           *Environment
+	loadedModules []string // Tracks loaded module paths to prevent circular dependencies
+}
+```
+The main interpreter structure that manages evaluating AST nodes and maintaining state.
+
+### New
+```go
+func New() *Interpreter
+```
+Creates a new interpreter with a fresh environment and registers built-in functions and classes.
+
+### Eval
+```go
+func (i *Interpreter) Eval(node ast.Node) Value
+```
+The public method that evaluates an AST node and returns a value.
+
+### eval
+```go
+func (i *Interpreter) eval(node ast.Node, env *Environment) Value
+```
+The internal evaluation method that dispatches to specific evaluation functions based on node type.
+
+## Program and Block Evaluation
+
+### evalProgram
+```go
+func (i *Interpreter) evalProgram(program *ast.Program, env *Environment) Value
+```
+Evaluates a complete program by evaluating each statement in sequence.
+
+### evalBlockStatement
+```go
+func (i *Interpreter) evalBlockStatement(block *ast.BlockStmt, env *Environment) Value
+```
+Evaluates a block of statements, such as in functions, if statements, and loops.
+
+## Declaration and Variable Handling
+
+### evalVariableDeclaration
+```go
+func (i *Interpreter) evalVariableDeclaration(node *ast.VariableDecl, env *Environment) Value
+```
+Evaluates variable declarations, including type checking if applicable.
+
+### parseTypeAnnotation
+```go
+func (i *Interpreter) parseTypeAnnotation(node *ast.TypeAnnotation) types.Type
+```
+Parses a type annotation into a concrete type in the type system.
+
+### evalIdentifier
+```go
+func (i *Interpreter) evalIdentifier(node *ast.Identifier, env *Environment) Value
+```
+Evaluates an identifier by looking up its value in the environment.
+
+### evalAssignment
+```go
+func (i *Interpreter) evalAssignment(node *ast.Assignment, env *Environment) Value
+```
+Evaluates an assignment expression, updating the variable in the environment.
+
+## Function Handling
+
+### evalFunctionDefinition
+```go
+func (i *Interpreter) evalFunctionDefinition(node *ast.FunctionDef, env *Environment) Value
+```
+Evaluates a function definition, creating a function value and binding it to a name.
+
+### evalCallExpression
+```go
+func (i *Interpreter) evalCallExpression(node *ast.CallExpr, env *Environment) Value
+```
+Evaluates a function call, including argument evaluation and environment setup.
+
+### evalExpressions
+```go
+func (i *Interpreter) evalExpressions(exps []ast.Node, env *Environment) []Value
+```
+Evaluates a list of expressions, typically used for function arguments.
+
+### evalReturnStatement
+```go
+func (i *Interpreter) evalReturnStatement(node *ast.ReturnStmt, env *Environment) Value
+```
+Evaluates a return statement, wrapping the returned value.
+
+## Control Flow
+
+### evalIfStatement
+```go
+func (i *Interpreter) evalIfStatement(node *ast.IfStmt, env *Environment) Value
+```
+Evaluates an if/else statement, including condition evaluation and branch selection.
+
+### evalWhileStatement
+```go
+func (i *Interpreter) evalWhileStatement(node *ast.WhileStmt, env *Environment) Value
+```
+Evaluates a while loop, repeatedly executing the body while the condition is true.
+
+### evalForStatement
+```go
+func (i *Interpreter) evalForStatement(node *ast.ForStmt, env *Environment) Value
+```
+Evaluates a for loop, including range-based loops over arrays and other iterables.
+
+## Expression Evaluation
+
+### evalUnaryExpression
+```go
+func (i *Interpreter) evalUnaryExpression(node *ast.UnaryExpr, env *Environment) Value
+```
+Evaluates unary expressions like negation and logical not.
+
+### evalBinaryExpression
+```go
+func (i *Interpreter) evalBinaryExpression(node *ast.BinaryExpr, env *Environment) Value
+```
+Evaluates binary expressions like addition, subtraction, equality, etc.
+
+### evalIntegerBinaryExpression
+```go
+func evalIntegerBinaryExpression(operator string, left, right Value) Value
+```
+Handles binary operations specifically for integer operands.
+
+### evalNumberBinaryExpression
+```go
+func evalNumberBinaryExpression(operator string, left, right Value) Value
+```
+Handles binary operations for numeric operands (integers or floats).
+
+### evalStringBinaryExpression
+```go
+func evalStringBinaryExpression(operator string, left, right Value) Value
+```
+Handles binary operations for string operands, like concatenation.
+
+### evalArrayLiteral
+```go
+func (i *Interpreter) evalArrayLiteral(node *ast.ArrayLiteral, env *Environment) Value
+```
+Evaluates array literals, creating a new array with evaluated elements.
+
+### evalIndexExpression
+```go
+func (i *Interpreter) evalIndexExpression(node *ast.IndexExpr, env *Environment) Value
+```
+Evaluates array indexing operations to access elements.
+
+## Object-Oriented Features
+
+### evalClassInstantiation
+```go
+func (i *Interpreter) evalClassInstantiation(node *ast.ClassInst, env *Environment) Value
+```
+Evaluates object instantiation with the 'new' keyword.
+
+### evalMethodCall
+```go
+func (i *Interpreter) evalMethodCall(node *ast.MethodCall, env *Environment) Value
+```
+Evaluates method calls on objects.
+
+## I/O and Module System
+
+### evalPrintStatement
+```go
+func (i *Interpreter) evalPrintStatement(node *ast.PrintStmt, env *Environment) Value
+```
+Evaluates print statements, displaying output to the console.
+
+### evalRequireStatement
+```go
+func (i *Interpreter) evalRequireStatement(node *ast.RequireStmt, env *Environment) Value
+```
+Evaluates require statements for importing modules.
+
+## Helper Functions
+
+### isTruthy
+```go
+func isTruthy(obj Value) bool
+```
+Determines if a value is considered true in a boolean context.
+
+### isError
+```go
+func isError(obj Value) bool
+```
+Checks if a value represents an error.
+
+### toString
+```go
+func toString(val Value) string
+```
+Converts a value to its string representation.
+
+## Bridging with Object Package
+
+### Eval (in eval.go)
+```go
+func Eval(node ast.Node, env *object.Environment) object.Object
+```
+A bridge function that allows using the interpreter with the object package's environment and return types.
+
+### valueToObject
+```go
+func valueToObject(value Value) object.Object
+```
+Converts interpreter.Value types to object.Object types for compatibility.

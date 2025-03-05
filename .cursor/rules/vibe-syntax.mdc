@@ -1,6 +1,6 @@
 ---
 description: keep this in mind when working on the interpreter, lexer and parser or writing tests
-globs:
+globs: *_test.go, *.go
 alwaysApply: false
 ---
 # Vibe Language Syntax Reference

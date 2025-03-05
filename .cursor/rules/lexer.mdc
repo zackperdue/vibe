@@ -1,0 +1,134 @@
+---
+description: read this file when trying to understand the lexer
+globs: lexer.go, parser.go, interpreter.go
+alwaysApply: false
+---
+# Lexer Functions Documentation
+
+This document provides a detailed overview of the lexer functions in the Vibe programming language.
+
+## Core Lexer Structure
+
+### Lexer struct
+```go
+type Lexer struct {
+	input        string
+	position     int  // current position in input (points to current char)
+	readPosition int  // current reading position in input (after current char)
+	ch           byte // current character being examined
+	line         int  // current line number
+	column       int  // current column number
+}
+```
+The main Lexer structure that tracks the current state of lexical analysis, including position in the input, current character, and line/column information for error reporting.
+
+## Lexer Creation
+
+### New
+```go
+func New(input string) *Lexer
+```
+Creates a new Lexer instance from the provided input string. It initializes the lexer, setting the line to 1 and column to 0, and calls readChar to prepare the first character.
+
+## Character Handling
+
+### readChar
+```go
+func (l *Lexer) readChar()
+```
+Reads the next character from the input and advances the lexer's position. This function also updates line and column tracking when it encounters newlines.
+
+### peekChar
+```go
+func (l *Lexer) peekChar() byte
+```
+Looks ahead at the next character in the input without advancing the lexer's position. Used for detecting multi-character tokens like "==" or "!=".
+
+### skipWhitespace
+```go
+func (l *Lexer) skipWhitespace()
+```
+Skips over any whitespace characters (spaces, tabs, newlines, carriage returns) by repeatedly calling readChar until a non-whitespace character is found.
+
+## Token Generation
+
+### NextToken
+```go
+func (l *Lexer) NextToken() Token
+```
+The primary function that returns the next token from the input. It identifies the type of token based on the current character and lexer state, handling special cases for operators, delimiters, identifiers, and literals.
+
+### readIdentifier
+```go
+func (l *Lexer) readIdentifier() string
+```
+Reads an identifier (variable name, function name, etc.) from the input, starting from the current position. It continues reading characters as long as they are letters or digits.
+
+### readNumber
+```go
+func (l *Lexer) readNumber() Token
+```
+Reads a number (integer or float) from the input, handling both integer literals (123) and floating-point literals (123.45). Returns the appropriate token type.
+
+### readString
+```go
+func (l *Lexer) readString() string
+```
+Reads a string literal from the input, handling escape sequences like \n, \t, \r, \", and \\. It continues reading until it finds the closing quotation mark or reaches EOF.
+
+## Helper Functions
+
+### isLetter
+```go
+func isLetter(ch byte) bool
+```
+Determines if a character is a letter or underscore, qualifying it to be part of an identifier.
+
+### isDigit
+```go
+func isDigit(ch byte) bool
+```
+Determines if a character is a digit (0-9), qualifying it to be part of a number.
+
+## Error Handling
+
+### Error
+```go
+func (l *Lexer) Error(message string) string
+```
+Formats an error message with line and column information for better error reporting.
+
+### addError
+```go
+func (l *Lexer) addError(message string)
+```
+Adds an error message for the current token, currently just printing it to stdout.
+
+## Token Management
+
+### LookupIdent
+```go
+func LookupIdent(ident string) TokenType
+```
+Checks if a given identifier is a reserved keyword. If it is, returns the appropriate keyword token type; otherwise, returns the IDENT token type.
+
+### NewToken
+```go
+func NewToken(tokenType TokenType, ch byte, line, column int) Token
+```
+Helper function to create a new token with the given token type, character, line number, and column number.
+
+## Token Types
+
+The lexer recognizes various token types including:
+
+- Basic tokens: ILLEGAL, EOF
+- Literals: IDENT, INT, FLOAT, STRING
+- Operators: ASSIGN, PLUS, MINUS, BANG, ASTERISK, SLASH, MODULO, POWER, etc.
+- Comparison operators: LT, GT, EQ, NOT_EQ, LT_EQ, GT_EQ
+- Logical operators: AND, OR
+- Delimiters: COMMA, SEMICOLON, COLON, DOT, AT, etc.
+- Brackets: LPAREN, RPAREN, LBRACE, RBRACE, LBRACKET, RBRACKET
+- Keywords: FUNCTION, LET, VAR, TRUE, FALSE, IF, ELSE, RETURN, etc.
+- Class-related keywords: CLASS, INHERITS, SELF, SUPER, NEW
+- Compound assignment operators: PLUS_ASSIGN, MINUS_ASSIGN, etc.

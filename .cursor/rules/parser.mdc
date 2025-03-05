@@ -1,0 +1,260 @@
+---
+description: Documentation for the Vibe language parser
+globs: parser/*.go
+alwaysApply: false
+---
+
+# Parser Functions Documentation
+
+This document provides a detailed overview of the parser functions in the Vibe programming language.
+
+## Core Parser Structure
+
+### Parser struct
+```go
+type Parser struct {
+	l         *lexer.Lexer
+	curToken  lexer.Token
+	peekToken lexer.Token
+	errors    []string
+	seenNonRequireStmt bool // Track if we've seen non-require statements
+	precedences map[lexer.TokenType]int
+}
+```
+The main Parser structure that tracks the current state of parsing, including the current and peek tokens, errors encountered, and operator precedence information.
+
+## Parser Creation and Initialization
+
+### New
+```go
+func New(l *lexer.Lexer) *Parser
+```
+Creates a new Parser instance from the provided lexer. Initializes the precedence table for operators and reads the first two tokens to set up curToken and peekToken.
+
+### Parse
+```go
+func Parse(l *lexer.Lexer) (*ast.Program, []string)
+```
+Factory function that creates a new parser, parses the input, and returns the resulting AST program along with any errors encountered.
+
+## Token Management
+
+### nextToken
+```go
+func (p *Parser) nextToken()
+```
+Advances the parser to the next token, updating curToken and peekToken.
+
+### curTokenIs
+```go
+func (p *Parser) curTokenIs(t lexer.TokenType) bool
+```
+Checks if the current token is of the specified type.
+
+### peekTokenIs
+```go
+func (p *Parser) peekTokenIs(t lexer.TokenType) bool
+```
+Checks if the next token (peek token) is of the specified type.
+
+### expectPeek
+```go
+func (p *Parser) expectPeek(t lexer.TokenType) bool
+```
+Checks if the peek token is of the expected type, and if so, advances to the next token. Returns false and adds an error if the token is not of the expected type.
+
+## Error Handling
+
+### Errors
+```go
+func (p *Parser) Errors() []string
+```
+Returns a slice of all error messages encountered during parsing.
+
+### peekError
+```go
+func (p *Parser) peekError(t lexer.TokenType)
+```
+Adds an error message when a peek token doesn't match the expected type.
+
+### addError
+```go
+func (p *Parser) addError(msg string)
+```
+Adds a custom error message to the parser's error list.
+
+## Program Parsing
+
+### parseProgram
+```go
+func (p *Parser) parseProgram() *ast.Program
+```
+Parses the entire program, building a list of statements until it reaches the end of file.
+
+### isStartOfStatement
+```go
+func (p *Parser) isStartOfStatement() bool
+```
+Determines if the current token is the start of a new statement.
+
+### parseStatement
+```go
+func (p *Parser) parseStatement() ast.Node
+```
+Dispatches to the appropriate parsing function based on the current token.
+
+### parseRequireStatement
+```go
+func (p *Parser) parseRequireStatement() ast.Node
+```
+Parses a require statement, which is used for importing modules.
+
+### parseAssignment
+```go
+func (p *Parser) parseAssignment() ast.Node
+```
+Parses an assignment expression (x = y).
+
+### isKeyword
+```go
+func isKeyword(t lexer.TokenType) bool
+```
+Determines if a token type represents a keyword.
+
+## Expression Parsing
+
+### parseExpression
+```go
+func (p *Parser) parseExpression(precedence int) ast.Node
+```
+The main expression parsing function using the Pratt parsing technique. It handles all types of expressions based on precedence.
+
+### isInfixOperator
+```go
+func isInfixOperator(tokenType lexer.TokenType) bool
+```
+Determines if a token type represents an infix operator.
+
+### peekPrecedence
+```go
+func (p *Parser) peekPrecedence() int
+```
+Returns the precedence of the peek token.
+
+### curPrecedence
+```go
+func (p *Parser) curPrecedence() int
+```
+Returns the precedence of the current token.
+
+### parseBinaryExpression
+```go
+func (p *Parser) parseBinaryExpression(left ast.Node) ast.Node
+```
+Parses binary expressions like a + b, a * b, etc.
+
+### parseCallExpression
+```go
+func (p *Parser) parseCallExpression(function ast.Node) ast.Node
+```
+Parses function call expressions like myFunc(arg1, arg2).
+
+### parseIndexExpression
+```go
+func (p *Parser) parseIndexExpression(array ast.Node) ast.Node
+```
+Parses array index expressions like myArray[index].
+
+### parseDotExpression
+```go
+func (p *Parser) parseDotExpression(object ast.Node) ast.Node
+```
+Parses dot expressions for accessing object properties like object.property.
+
+### parseArrayLiteral
+```go
+func (p *Parser) parseArrayLiteral() ast.Node
+```
+Parses array literals like [1, 2, 3].
+
+## Declaration Parsing
+
+### parseVariableDeclaration
+```go
+func (p *Parser) parseVariableDeclaration() ast.Node
+```
+Parses variable declarations like 'x: int = 5' or 'y = 10'.
+
+### parseTypeDeclaration
+```go
+func (p *Parser) parseTypeDeclaration() ast.Node
+```
+Parses type declarations like 'type StringArray = Array<string>'.
+
+### parseClassInstantiation
+```go
+func (p *Parser) parseClassInstantiation(class ast.Node) ast.Node
+```
+Parses class instantiation expressions like 'new MyClass(arg1, arg2)'.
+
+### parseSuperCall
+```go
+func (p *Parser) parseSuperCall() ast.Node
+```
+Parses calls to the superclass method using the 'super' keyword.
+
+## Statement Parsing
+
+### parseIfStatement
+```go
+func (p *Parser) parseIfStatement() ast.Node
+```
+Parses if/elsif/else statements.
+
+### parseBlockStatements
+```go
+func (p *Parser) parseBlockStatements(endTokens ...lexer.TokenType) *ast.BlockStmt
+```
+Parses a block of statements until one of the specified end tokens is encountered.
+
+### containsTokenType
+```go
+func containsTokenType(tokenType lexer.TokenType, tokenTypes []lexer.TokenType) bool
+```
+Helper function to check if a token type is contained in a slice of token types.
+
+### parseWhileStatement
+```go
+func (p *Parser) parseWhileStatement() ast.Node
+```
+Parses while loops like 'while condition do ... end'.
+
+### parseForStatement
+```go
+func (p *Parser) parseForStatement() ast.Node
+```
+Parses for loops like 'for i in array do ... end'.
+
+### parseFunctionParameters
+```go
+func (p *Parser) parseFunctionParameters() []ast.Parameter
+```
+Parses function parameters like '(x: int, y: string)'.
+
+### parseTypeAnnotation
+```go
+func (p *Parser) parseTypeAnnotation() *ast.TypeAnnotation
+```
+Parses type annotations like 'int', 'string', or generic types like 'Array<T>'.
+
+### parseClassDefinition
+```go
+func (p *Parser) parseClassDefinition() ast.Node
+```
+Parses class definitions with inheritance, instance variables, and methods.
+
+### parseFunctionDefinition
+```go
+func (p *Parser) parseFunctionDefinition() ast.Node
+```
+Parses function definitions like 'def add(x: int, y: int): int do ... end'.

@@ -1,0 +1,332 @@
+---
+description: Detailed guidance on function-level testing strategies for the Vibe language
+globs: interpreter/**/*.go, parser/**/*.go, lexer/**/*.go, tests/**/*.go
+alwaysApply: true
+---
+
+# Function-Level Testing Strategies for the Vibe Project
+
+This document provides detailed guidance on how to thoroughly test functions in the Vibe programming language project. It focuses on creating comprehensive test coverage through a combination of happy path and error path testing.
+
+## Core Testing Philosophy
+
+Every function in the Vibe codebase should have corresponding tests that verify:
+
+1. **Correctness** - The function produces the expected output for valid inputs
+2. **Robustness** - The function handles invalid inputs and edge cases gracefully
+3. **Performance** - The function executes efficiently (where applicable)
+
+## Testing Each Function
+
+### Function Test Coverage Requirements
+
+For each function in the codebase:
+
+- **Create at least one test function** specifically targeting the function under test
+- **Test every branch and condition** within the function
+- **Cover all return paths** in the function
+- **Aim for >90% code coverage** for critical components (lexer, parser, interpreter)
+
+### Naming Convention
+
+```go
+func Test<FunctionName>_<ScenarioBeingTested>(t *testing.T) {}
+```
+
+Example:
+```go
+// For a function named ParseExpression
+func TestParseExpression_ValidBinaryOperation(t *testing.T) {}
+func TestParseExpression_MissingOperand(t *testing.T) {}
+```
+
+## Happy Path Testing
+
+Happy path tests verify that functions work correctly with valid inputs. For each function:
+
+1. **Identify valid input variations** - Test different valid inputs that exercise different code paths
+2. **Test normal usage patterns** - Cover common use cases first
+3. **Test boundary conditions** - Test at the edges of valid input ranges
+4. **Verify all expected outputs** - Check both return values and side effects
+
+### Example Happy Path Test
+
+```go
+func TestEvalIntegerLiteral_BasicInteger(t *testing.T) {
+    // Setup
+    input := "5"
+    lexer := lexer.New(input)
+    parser := parser.New(lexer)
+    program := parser.ParseProgram()
+    interp := interpreter.New()
+
+    // Execute
+    result := interp.Eval(program.Statements[0])
+
+    // Verify
+    intResult, ok := result.(*interpreter.IntegerValue)
+    if !ok {
+        t.Fatalf("Expected *interpreter.IntegerValue, got %T", result)
+    }
+
+    if intResult.Value != 5 {
+        t.Errorf("Expected integer value 5, got %d", intResult.Value)
+    }
+}
+```
+
+## Error Path Testing
+
+Error path tests verify that functions handle invalid inputs and error conditions gracefully. For each function:
+
+1. **Identify potential failure modes** - How could the function fail?
+2. **Test with invalid inputs** - Provide malformed or incorrect inputs
+3. **Test with edge cases** - Test extreme values or unusual inputs
+4. **Verify error handling** - Check that errors are properly reported or handled
+
+### Example Error Path Test
+
+```go
+func TestParseExpression_InvalidSyntax(t *testing.T) {
+    // Setup - creating a malformed expression
+    input := "5 +" // Missing right operand
+    lexer := lexer.New(input)
+    parser := parser.New(lexer)
+
+    // Execute
+    expression := parser.parseExpression(LOWEST)
+
+    // Verify
+    if len(parser.Errors()) == 0 {
+        t.Errorf("Expected parser errors, got none")
+    }
+
+    if expression != nil {
+        t.Errorf("Expected nil expression, got %T", expression)
+    }
+}
+```
+
+## Component-Specific Testing Strategies
+
+### Lexer Testing
+
+- **Test each token type** individually
+- **Test token sequences** to ensure proper advancement
+- **Test with valid and invalid characters**
+- **Test language keywords and operators**
+
+Example cases to test:
+- Single-character tokens
+- Multi-character tokens
+- Reserved keywords
+- Identifiers
+- Whitespace handling
+- Invalid characters
+- EOF handling
+
+### Parser Testing
+
+- **Test parsing of each language construct**
+- **Test operator precedence**
+- **Test nested expressions**
+- **Test error recovery**
+
+Example cases to test:
+- Expression parsing
+- Statement parsing
+- Operator precedence
+- Type annotations
+- Invalid syntax recovery
+
+### Interpreter Testing
+
+- **Test evaluation of each type of AST node**
+- **Test variable scoping**
+- **Test function calls and returns**
+- **Test built-in functions**
+
+Example cases to test:
+- Literal evaluation
+- Binary operations with various types
+- Variable declaration and assignment
+- Function definitions and calls
+- Control flow (if/else, loops)
+- Error handling during evaluation
+
+## Table-Driven Testing
+
+For similar test cases, use table-driven tests to reduce code duplication:
+
+```go
+func TestEvalBinaryExpression_ArithmeticOperations(t *testing.T) {
+    tests := []struct {
+        input    string
+        expected int
+    }{
+        {"5 + 3", 8},
+        {"10 - 7", 3},
+        {"3 * 4", 12},
+        {"12 / 3", 4},
+    }
+
+    for _, tt := range tests {
+        t.Run(tt.input, func(t *testing.T) {
+            lexer := lexer.New(tt.input)
+            parser := parser.New(lexer)
+            program := parser.ParseProgram()
+            interp := interpreter.New()
+
+            result := interp.Eval(program.Statements[0])
+
+            intResult, ok := result.(*interpreter.IntegerValue)
+            if !ok {
+                t.Fatalf("Expected *interpreter.IntegerValue, got %T", result)
+            }
+
+            if intResult.Value != tt.expected {
+                t.Errorf("Expected integer value %d, got %d", tt.expected, intResult.Value)
+            }
+        })
+    }
+}
+```
+
+## Test Helpers and Utilities
+
+Create helper functions to simplify common testing operations:
+
+```go
+// Helper to quickly parse and evaluate an expression
+func testEval(t *testing.T, input string) interpreter.Value {
+    lexer := lexer.New(input)
+    parser := parser.New(lexer)
+    program := parser.ParseProgram()
+
+    if len(parser.Errors()) > 0 {
+        t.Fatalf("Parser errors: %v", parser.Errors())
+    }
+
+    interp := interpreter.New()
+    return interp.Eval(program)
+}
+
+// Helper to check integer results
+func testIntegerValue(t *testing.T, value interpreter.Value, expected int) {
+    intValue, ok := value.(*interpreter.IntegerValue)
+    if !ok {
+        t.Fatalf("Expected *interpreter.IntegerValue, got %T", value)
+    }
+
+    if intValue.Value != expected {
+        t.Errorf("Expected value %d, got %d", expected, intValue.Value)
+    }
+}
+```
+
+## Testing Regressions
+
+When fixing a bug:
+
+1. **Create a failing test** that reproduces the bug
+2. **Fix the bug** and verify the test passes
+3. **Add the test to the suite** to prevent future regressions
+
+Example:
+```go
+func TestParseArrayLiteral_EmptyArray_Regression123(t *testing.T) {
+    // This test verifies the fix for issue #123
+    // where empty arrays weren't parsed correctly
+
+    input := "[]"
+    lexer := lexer.New(input)
+    parser := parser.New(lexer)
+
+    program := parser.ParseProgram()
+
+    if len(parser.Errors()) > 0 {
+        t.Fatalf("Parser errors: %v", parser.Errors())
+    }
+
+    // Verify the array was parsed as an empty array literal
+    stmt := program.Statements[0].(*ast.ExpressionStmt)
+    arrayLit, ok := stmt.Expression.(*ast.ArrayLiteral)
+    if !ok {
+        t.Fatalf("Expected ast.ArrayLiteral, got %T", stmt.Expression)
+    }
+
+    if len(arrayLit.Elements) != 0 {
+        t.Errorf("Expected empty array, got array with %d elements", len(arrayLit.Elements))
+    }
+}
+```
+
+## Testing Complex Objects
+
+When testing functions that return complex objects:
+
+1. **Check the type** of the returned object
+2. **Verify each field** of the object
+3. **Test nested structures** where applicable
+
+Example:
+```go
+func TestParseClassDefinition(t *testing.T) {
+    input := "class Person { name: string; age: int; }"
+    lexer := lexer.New(input)
+    parser := parser.New(lexer)
+
+    program := parser.ParseProgram()
+
+    if len(parser.Errors()) > 0 {
+        t.Fatalf("Parser errors: %v", parser.Errors())
+    }
+
+    // Verify class definition
+    if len(program.Statements) != 1 {
+        t.Fatalf("Expected 1 statement, got %d", len(program.Statements))
+    }
+
+    classDef, ok := program.Statements[0].(*ast.ClassDef)
+    if !ok {
+        t.Fatalf("Expected ast.ClassDef, got %T", program.Statements[0])
+    }
+
+    if classDef.Name.Value != "Person" {
+        t.Errorf("Expected class name 'Person', got '%s'", classDef.Name.Value)
+    }
+
+    // Verify class fields
+    expectedFields := map[string]string{
+        "name": "string",
+        "age":  "int",
+    }
+
+    if len(classDef.Fields) != len(expectedFields) {
+        t.Fatalf("Expected %d fields, got %d", len(expectedFields), len(classDef.Fields))
+    }
+
+    for _, field := range classDef.Fields {
+        expectedType, ok := expectedFields[field.Name.Value]
+        if !ok {
+            t.Errorf("Unexpected field: %s", field.Name.Value)
+            continue
+        }
+
+        if field.Type.Name != expectedType {
+            t.Errorf("Expected field %s to have type %s, got %s",
+                     field.Name.Value, expectedType, field.Type.Name)
+        }
+    }
+}
+```
+
+## Continuous Improvement
+
+Review test coverage regularly and add tests where coverage is insufficient. Use the Go testing tools to help identify untested code paths:
+
+```bash
+go test -cover ./...
+go test -coverprofile=coverage.out ./...
+go tool cover -html=coverage.out
+```
