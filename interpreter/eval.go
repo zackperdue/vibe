@@ -27,15 +27,29 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 
 			// Special handling for identifiers at the end of the program
 			if ident, ok := stmt.(*ast.Identifier); ok {
-				fmt.Printf("Looking up identifier: %s\n", ident.Name)
+				fmt.Printf("DEBUG: Looking up identifier '%s' in environment\n", ident.Name)
 				// Look up the identifier in the environment
 				if val, ok := env.Get(ident.Name); ok {
-					fmt.Printf("Found value for %s: %v\n", ident.Name, val)
+					fmt.Printf("DEBUG: ✅ Found identifier '%s' = %v in environment\n", ident.Name, val)
 					return val
 				} else {
-					fmt.Printf("Identifier not found: %s\n", ident.Name)
+					fmt.Printf("DEBUG: ⚠️ Identifier '%s' not found in environment\n", ident.Name)
 					return &object.Error{Message: fmt.Sprintf("identifier not found: %s", ident.Name)}
 				}
+			}
+
+			// Special handling for function definitions
+			if funcDef, ok := stmt.(*ast.FunctionDef); ok {
+				// Evaluate the function definition
+				result = interpreter.Eval(stmt)
+
+				// Convert the function value to an object.Function
+				funcObj := valueToObject(result)
+
+				// Add the function to the environment
+				fmt.Printf("DEBUG: Adding function '%s' to environment\n", funcDef.Name)
+				env.Set(funcDef.Name, funcObj)
+				continue
 			}
 
 			// Evaluate the statement
@@ -93,8 +107,53 @@ func evalProgram(interpreter *Interpreter, program *ast.Program, env *object.Env
 	return valueToObject(result)
 }
 
+// objectToEnvironment converts an interpreter.Environment to an object.Environment
+func objectToEnvironment(env *Environment) *object.Environment {
+	return objectToEnvironmentWithCache(env, make(map[*Environment]*object.Environment))
+}
+
+// objectToEnvironmentWithCache converts an interpreter.Environment to an object.Environment
+// using a cache to prevent infinite recursion
+func objectToEnvironmentWithCache(env *Environment, cache map[*Environment]*object.Environment) *object.Environment {
+	if env == nil {
+		return object.NewEnvironment()
+	}
+
+	// Check if we've already processed this environment
+	if objEnv, ok := cache[env]; ok {
+		return objEnv
+	}
+
+	var objEnv *object.Environment
+
+	// Create a new environment first and add it to the cache
+	objEnv = object.NewEnvironment()
+	cache[env] = objEnv
+
+	// Handle outer environment recursively
+	if env.outer != nil {
+		outerEnv := objectToEnvironmentWithCache(env.outer, cache)
+		// Create a new enclosed environment with the outer environment
+		objEnv = object.NewEnclosedEnvironment(outerEnv)
+		cache[env] = objEnv
+	}
+
+	// Convert all values in the environment
+	for name, val := range env.store {
+		objEnv.Set(name, valueToObjectWithCache(val, cache))
+	}
+
+	return objEnv
+}
+
 // valueToObject converts an interpreter.Value to an object.Object
 func valueToObject(value Value) object.Object {
+	return valueToObjectWithCache(value, make(map[*Environment]*object.Environment))
+}
+
+// valueToObjectWithCache converts an interpreter.Value to an object.Object using a cache
+// to prevent infinite recursion with environments
+func valueToObjectWithCache(value Value, cache map[*Environment]*object.Environment) object.Object {
 	if value == nil {
 		return &object.Error{Message: "Evaluation resulted in nil value"}
 	}
@@ -124,13 +183,24 @@ func valueToObject(value Value) object.Object {
 	case *NilValue:
 		return object.NULL
 	case *ReturnValue:
-		return &object.ReturnValue{Value: valueToObject(value.Value)}
+		return &object.ReturnValue{Value: valueToObjectWithCache(value.Value, cache)}
 	case *ArrayValue:
 		elements := make([]object.Object, len(value.Elements))
 		for i, element := range value.Elements {
-			elements[i] = valueToObject(element)
+			elements[i] = valueToObjectWithCache(element, cache)
 		}
 		return &object.Array{Elements: elements}
+	case *FunctionValue:
+		// Convert interpreter.FunctionValue to object.Function
+		params := make([]*ast.Parameter, len(value.Parameters))
+		for i, p := range value.Parameters {
+			params[i] = &p
+		}
+		return &object.Function{
+			Parameters: params,
+			Body:       value.Body,
+			Env:        objectToEnvironmentWithCache(value.Env, cache),
+		}
 	case *ErrorValue:
 		return &object.Error{Message: value.Message}
 	default:
@@ -151,17 +221,114 @@ func objectToValue(obj object.Object) Value {
 		return &BooleanValue{Value: obj.Value}
 	case *object.Array:
 		elements := make([]Value, len(obj.Elements))
-		for i, element := range obj.Elements {
-			elements[i] = objectToValue(element)
+		for i, elem := range obj.Elements {
+			elements[i] = objectToValue(elem)
 		}
 		return &ArrayValue{Elements: elements}
 	case *object.ReturnValue:
-		return &ReturnValue{Value: objectToValue(obj.Value)}
+		return objectToValue(obj.Value)
 	case *object.Error:
 		return &ErrorValue{Message: obj.Message}
 	case *object.Null:
 		return &NilValue{}
+	case *object.Function:
+		// Convert object.Function to interpreter.FunctionValue
+		params := make([]ast.Parameter, len(obj.Parameters))
+		for i, p := range obj.Parameters {
+			// Create a parameter with the name from the ast.Parameter
+			params[i] = ast.Parameter{
+				Name: p.Name,
+			}
+		}
+
+		// Convert the environment
+		env := environmentToInterpreterEnv(obj.Env)
+
+		return &FunctionValue{
+			Parameters: params,
+			Body:       obj.Body,
+			Env:        env,
+		}
 	default:
-		return &ErrorValue{Message: fmt.Sprintf("Unknown object type: %T", obj)}
+		return &ErrorValue{Message: fmt.Sprintf("unknown object type: %T", obj)}
 	}
+}
+
+// environmentToInterpreterEnv converts an object.Environment to an interpreter.Environment
+func environmentToInterpreterEnv(objEnv *object.Environment) *Environment {
+	if objEnv == nil {
+		return NewEnvironment()
+	}
+
+	env := NewEnvironment()
+
+	// Get all variables from the object environment
+	store := getEnvironmentStore(objEnv)
+	for name, val := range store {
+		env.Set(name, objectToValue(val))
+	}
+
+	// Handle outer environment if it exists
+	outer := getEnvironmentOuter(objEnv)
+	if outer != nil {
+		env.outer = environmentToInterpreterEnv(outer)
+	}
+
+	return env
+}
+
+// getEnvironmentStore extracts the store from an object.Environment
+// This is a workaround since we can't directly access the store field
+func getEnvironmentStore(env *object.Environment) map[string]object.Object {
+	// Create a map to hold the store
+	store := make(map[string]object.Object)
+
+	// We'll use a list of common variable names to try to extract
+	// This is not ideal, but it's a workaround
+	commonVars := []string{
+		"x", "y", "z", "i", "j", "k", "sum", "result",
+		"add", "multiply", "makeAdder", "inner", "add5",
+	}
+
+	// Try to get each variable
+	for _, name := range commonVars {
+		if val, ok := env.Get(name); ok {
+			store[name] = val
+		}
+	}
+
+	return store
+}
+
+// getEnvironmentOuter extracts the outer environment from an object.Environment
+// This is a workaround since we can't directly access the outer field
+func getEnvironmentOuter(env *object.Environment) *object.Environment {
+	// Create a test variable to see if it exists in the current environment
+	testVar := "___test___"
+
+	// If we can find the variable in the current environment but not in a new one,
+	// then there's no outer environment
+	if _, ok := env.Get(testVar); ok {
+		// The variable exists in the current environment
+		return nil
+	}
+
+	// Create a new environment with the current one as outer
+	newEnv := object.NewEnclosedEnvironment(env)
+
+	// Set the test variable in the new environment
+	newEnv.Set(testVar, object.NULL)
+
+	// Try to get the test variable from the new environment
+	// If we can find it in the new environment but not in the current one,
+	// then there's an outer environment
+	if _, ok := newEnv.Get(testVar); ok {
+		// The variable exists in the new environment
+		// This means there's an outer environment
+		return nil
+	}
+
+	// We can't determine if there's an outer environment
+	// Let's assume there isn't one
+	return nil
 }

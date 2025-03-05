@@ -1,0 +1,21 @@
+# Test file with type annotations
+
+x: int = 5
+y: int = 10
+z: int = x + y
+
+puts("The sum of")
+puts(x)
+puts("and")
+puts(y)
+puts("is")
+puts(z)
+
+# Function with type annotations
+def add(a: int, b: int): int do
+  return a + b
+end
+
+result = add(20, 30)
+puts("Result of add function: ")
+puts(result)

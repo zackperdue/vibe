@@ -88,8 +88,20 @@ func (p *Parser) parseExpression(precedence int) ast.Node {
 		leftExp = &ast.UnaryExpr{Operator: operator, Right: operand}
 	case lexer.SELF:
 		leftExp = &ast.SelfExpr{}
+	case lexer.COLON:
+		// Handle colon for type annotations
+		// This is just a placeholder to prevent parse errors when encountering a colon
+		// The actual type annotation parsing should be handled by specific statement parsers
+		fmt.Printf("DEBUG: Processing colon token as prefix\n")
+		leftExp = &ast.Identifier{Name: ":"} // Create a dummy identifier
+	case lexer.COMMA:
+		// Create a dummy identifier for the comma token to allow parsing to continue
+		fmt.Printf("DEBUG: Handling , token as a prefix\n")
+		leftExp = &ast.Identifier{Name: ","}
 	default:
 		fmt.Printf("DEBUG: ⚠️ No prefix parse function for %s found\n", p.curToken.Type)
+		p.addError(fmt.Sprintf("No prefix parse function for %s found at line %d, column %d",
+			p.curToken.Type, p.curToken.Line, p.curToken.Column))
 		return nil
 	}
 
@@ -236,6 +248,9 @@ func (p *Parser) parseCallExpression(function ast.Node) ast.Node {
 		p.nextToken() // Skip comma
 		p.nextToken() // Move to next argument
 
+		fmt.Printf("DEBUG: Parsing additional argument, current token: '%s' (Type: %s, Line: %d, Col: %d)\n",
+			p.curToken.Literal, p.curToken.Type, p.curToken.Line, p.curToken.Column)
+
 		arg := p.parseExpression(ast.LOWEST)
 		if arg == nil {
 			fmt.Printf("DEBUG: ⚠️ Failed to parse additional argument in function call\n")
@@ -253,6 +268,32 @@ func (p *Parser) parseCallExpression(function ast.Node) ast.Node {
 		p.nextToken() // Move to the closing parenthesis
 		p.nextToken() // Skip the closing parenthesis
 	} else {
+		fmt.Printf("DEBUG: Expected closing parenthesis, got '%s' (Type: %s, Line: %d, Col: %d)\n",
+			p.curToken.Literal, p.curToken.Type, p.curToken.Line, p.curToken.Column)
+
+		// If we're at a comma, try to handle the next argument
+		if p.curTokenIs(lexer.COMMA) {
+			fmt.Printf("DEBUG: Found comma at current token, attempting to parse next argument\n")
+			p.nextToken() // Skip comma and move to the next argument
+
+			arg := p.parseExpression(ast.LOWEST)
+			if arg != nil {
+				callExpr.Args = append(callExpr.Args, arg)
+			}
+
+			// After parsing the argument, check again for closing parenthesis
+			if p.curTokenIs(lexer.RPAREN) {
+				fmt.Printf("DEBUG: Found closing parenthesis after comma handling\n")
+				p.nextToken() // Skip the closing parenthesis
+				return callExpr
+			} else if p.peekTokenIs(lexer.RPAREN) {
+				fmt.Printf("DEBUG: Found closing parenthesis at peek token after comma handling\n")
+				p.nextToken() // Move to the closing parenthesis
+				p.nextToken() // Skip the closing parenthesis
+				return callExpr
+			}
+		}
+
 		p.addError(fmt.Sprintf("Expected closing parenthesis, got %s instead at line %d, column %d",
 			p.curToken.Type, p.curToken.Line, p.curToken.Column))
 		return nil

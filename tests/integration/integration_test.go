@@ -120,7 +120,7 @@ func TestStatementEvaluation(t *testing.T) {
 			end
 			adder = makeAdder(5)
 			adder(10)`,
-			10,
+			15,
 		},
 		{
 			"Function without explicit return type",

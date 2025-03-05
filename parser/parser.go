@@ -171,6 +171,10 @@ func (p *Parser) parseStatement() ast.Node {
 	case lexer.REQUIRE:
 		return p.parseRequireStatement()
 	default:
+		// Check for variable declaration with type annotation (x: int = 5)
+		if p.curTokenIs(lexer.IDENT) && p.peekTokenIs(lexer.COLON) {
+			return p.parseVariableDeclaration()
+		}
 		// Check for assignment (a = 1)
 		if p.curTokenIs(lexer.IDENT) && p.peekTokenIs(lexer.ASSIGN) {
 			return p.parseAssignment()
