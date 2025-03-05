@@ -289,7 +289,8 @@ func TestForLoopParsing(t *testing.T) {
 		expectedBodyLen int
 	}{
 		{
-			`for x in [1] do end`,
+			`for x in [1] do
+end`,
 			"x",
 			[]string{"1"},
 			0,

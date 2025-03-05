@@ -44,6 +44,10 @@ func (p *Parser) parseExpression(precedence int) ast.Node {
 	case lexer.PRINT:
 		// Handle 'puts' as an identifier so it can be used as a function call
 		leftExp = &ast.Identifier{Name: "puts"}
+	case lexer.TYPE:
+		// Handle 'type' keyword for type declarations
+		leftExp = p.parseTypeDeclaration()
+		return leftExp // Return early as parseTypeDeclaration already advances tokens
 	case lexer.FUNCTION:
 		// Handle anonymous function expressions by using the updated parseFunctionDefinition
 		leftExp = p.parseFunctionDefinition()

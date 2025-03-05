@@ -9,7 +9,8 @@ import (
 )
 
 func TestSimpleForLoop(t *testing.T) {
-	input := `for x in [1] do end`
+	input := `for x in [1] do
+end`
 
 	l := lexer.New(input)
 	program, errors := parser.Parse(l)

@@ -170,6 +170,8 @@ func (p *Parser) parseStatement() ast.Node {
 		return p.parseClassDefinition()
 	case lexer.REQUIRE:
 		return p.parseRequireStatement()
+	case lexer.TYPE:
+		return p.parseTypeDeclaration()
 	default:
 		// Check for variable declaration with type annotation (x: int = 5)
 		if p.curTokenIs(lexer.IDENT) && p.peekTokenIs(lexer.COLON) {
