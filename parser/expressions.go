@@ -334,33 +334,37 @@ func (p *Parser) parseDotExpression(object ast.Node) ast.Node {
 
 	propertyOrMethodName := p.curToken.Literal
 
+	// Check if it's a method call
 	if p.peekTokenIs(lexer.LPAREN) {
 		// It's a method call
-		p.nextToken() // consume IDENT and move to LPAREN
 		methodCall := &ast.MethodCall{
 			Object: object,
 			Method: propertyOrMethodName,
 			Args:   []ast.Node{},
 		}
 
+		p.nextToken() // consume IDENT and move to LPAREN
 		p.nextToken() // consume LPAREN
 
 		// Handle empty argument list
-		if !p.curTokenIs(lexer.RPAREN) {
-			// Parse first argument
+		if p.curTokenIs(lexer.RPAREN) {
+			p.nextToken() // consume RPAREN
+			return methodCall
+		}
+
+		// Parse first argument
+		arg := p.parseExpression(ast.LOWEST)
+		if arg != nil {
+			methodCall.Args = append(methodCall.Args, arg)
+		}
+
+		// Parse additional arguments
+		for p.peekTokenIs(lexer.COMMA) {
+			p.nextToken() // consume current token
+			p.nextToken() // consume comma and move to the next argument
 			arg := p.parseExpression(ast.LOWEST)
 			if arg != nil {
 				methodCall.Args = append(methodCall.Args, arg)
-			}
-
-			// Parse additional arguments
-			for p.peekTokenIs(lexer.COMMA) {
-				p.nextToken() // consume comma
-				p.nextToken() // move to the next argument start
-				arg := p.parseExpression(ast.LOWEST)
-				if arg != nil {
-					methodCall.Args = append(methodCall.Args, arg)
-				}
 			}
 		}
 
@@ -374,11 +378,13 @@ func (p *Parser) parseDotExpression(object ast.Node) ast.Node {
 	}
 
 	// It's a property access
-	p.nextToken() // Move past the property name
-	return &ast.DotExpr{
+	dotExpr := &ast.DotExpr{
 		Object:   object,
 		Property: propertyOrMethodName,
 	}
+
+	p.nextToken() // Move past the property name
+	return dotExpr
 }
 
 // parseArrayLiteral parses an array literal expression

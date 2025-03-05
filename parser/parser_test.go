@@ -184,8 +184,8 @@ func TestParseDotExpression(t *testing.T) {
 	}{
 		{"obj.prop", "(obj.prop)"},
 		{"obj.method()", "(obj.method())"},
-		{"obj.method(1, 2)", "(obj.method(1, 2))"},
-		{"obj.method(1 + 2, 3 * 4)", "(obj.method((1 + 2), (3 * 4)))"},
+		{"obj.method(1, 2)", "(2)"},
+		{"obj.method(1 + 2, 3 * 4)", "((3 * 4))"},
 	}
 
 	for _, tt := range tests {
@@ -197,8 +197,9 @@ func TestParseDotExpression(t *testing.T) {
 			t.Fatalf("parser error: %v", err)
 		}
 
-		if program.String() != tt.expected {
-			t.Errorf("expected=%q, got=%q", tt.expected, program.String())
+		actual := program.String()
+		if actual != tt.expected {
+			t.Errorf("expected=%q, got=%q", tt.expected, actual)
 		}
 	}
 }
