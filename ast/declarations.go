@@ -5,6 +5,28 @@ import (
 	"strings"
 )
 
+// VariableDecl represents a variable declaration in the AST
+type VariableDecl struct {
+	Name           string
+	TypeAnnotation *TypeAnnotation
+	Value          Node // Initial value (can be nil)
+}
+
+func (v *VariableDecl) Type() NodeType { return VariableDeclNode }
+func (v *VariableDecl) String() string {
+	typeAnnotation := ""
+	if v.TypeAnnotation != nil {
+		typeAnnotation = ": " + v.TypeAnnotation.String()
+	}
+
+	if v.Value == nil {
+		return fmt.Sprintf("%s%s", v.Name, typeAnnotation)
+	}
+
+	return fmt.Sprintf("%s%s = %s", v.Name, typeAnnotation, v.Value.String())
+}
+func (v *VariableDecl) statementNode() {}
+
 // Parameter represents a function parameter in the AST
 type Parameter struct {
 	Name string
@@ -44,6 +66,8 @@ func (f *FunctionDef) String() string {
 		returnTypeStr,
 		f.Body.String())
 }
+func (f *FunctionDef) statementNode() {}
+func (f *FunctionDef) expressionNode() {}
 
 // TypeAnnotation represents a type annotation in the AST
 type TypeAnnotation struct {
@@ -79,27 +103,7 @@ func (t *TypeDeclaration) Type() NodeType { return TypeDeclarationNode }
 func (t *TypeDeclaration) String() string {
 	return fmt.Sprintf("type %s = %s", t.Name, t.TypeValue.String())
 }
-
-// VariableDecl represents a variable declaration in the AST
-type VariableDecl struct {
-	Name           string
-	TypeAnnotation *TypeAnnotation
-	Value          Node // Initial value (can be nil)
-}
-
-func (v *VariableDecl) Type() NodeType { return VariableDeclNode }
-func (v *VariableDecl) String() string {
-	typeAnnotation := ""
-	if v.TypeAnnotation != nil {
-		typeAnnotation = ": " + v.TypeAnnotation.String()
-	}
-
-	if v.Value == nil {
-		return fmt.Sprintf("%s%s", v.Name, typeAnnotation)
-	}
-
-	return fmt.Sprintf("%s%s = %s", v.Name, typeAnnotation, v.Value.String())
-}
+func (t *TypeDeclaration) statementNode() {}
 
 // ClassDef represents a class definition in the AST
 type ClassDef struct {
@@ -142,3 +146,29 @@ func (c *ClassDef) String() string {
 
 	return result
 }
+func (c *ClassDef) statementNode() {}
+
+// MethodDef represents a method definition in a class
+type MethodDef struct {
+	Name       string
+	Parameters []Parameter
+	ReturnType Node
+	Body       *BlockStmt
+}
+
+func (m *MethodDef) Type() NodeType { return MethodDefNode }
+func (m *MethodDef) String() string {
+	params := []string{}
+	for _, p := range m.Parameters {
+		params = append(params, p.String())
+	}
+
+	returnType := ""
+	if m.ReturnType != nil {
+		returnType = fmt.Sprintf(": %s", m.ReturnType.String())
+	}
+
+	return fmt.Sprintf("def %s(%s)%s %s", m.Name, strings.Join(params, ", "), returnType, m.Body.String())
+}
+
+func (m *MethodDef) statementNode() {}

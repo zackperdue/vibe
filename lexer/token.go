@@ -95,8 +95,6 @@ const (
 // keywords maps strings to their keyword TokenType
 var keywords = map[string]TokenType{
 	"def":      FUNCTION,
-	"let":      LET,
-	"var":      VAR,
 	"true":     TRUE,
 	"false":    FALSE,
 	"if":       IF,

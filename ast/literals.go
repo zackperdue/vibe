@@ -2,6 +2,7 @@ package ast
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -14,10 +15,11 @@ type NumberLiteral struct {
 func (n *NumberLiteral) Type() NodeType { return NumberNode }
 func (n *NumberLiteral) String() string {
 	if n.IsInt {
-		return fmt.Sprintf("%d", int(n.Value))
+		return strconv.FormatInt(int64(n.Value), 10)
 	}
-	return fmt.Sprintf("%f", n.Value)
+	return strconv.FormatFloat(n.Value, 'f', -1, 64)
 }
+func (n *NumberLiteral) expressionNode() {}
 
 // StringLiteral represents a string literal in the AST
 type StringLiteral struct {
@@ -26,6 +28,7 @@ type StringLiteral struct {
 
 func (s *StringLiteral) Type() NodeType { return StringNode }
 func (s *StringLiteral) String() string { return fmt.Sprintf("String(%q)", s.Value) }
+func (s *StringLiteral) expressionNode() {}
 
 // BooleanLiteral represents a boolean literal in the AST
 type BooleanLiteral struct {
@@ -34,12 +37,14 @@ type BooleanLiteral struct {
 
 func (b *BooleanLiteral) Type() NodeType { return BooleanNode }
 func (b *BooleanLiteral) String() string { return fmt.Sprintf("Boolean(%t)", b.Value) }
+func (b *BooleanLiteral) expressionNode() {}
 
 // NilLiteral represents a nil literal in the AST
 type NilLiteral struct{}
 
 func (n *NilLiteral) Type() NodeType { return NilNode }
 func (n *NilLiteral) String() string { return "Nil" }
+func (n *NilLiteral) expressionNode() {}
 
 // ArrayLiteral represents an array literal in the AST
 type ArrayLiteral struct {
@@ -54,6 +59,7 @@ func (a *ArrayLiteral) String() string {
 	}
 	return fmt.Sprintf("[%s]", strings.Join(elements, ", "))
 }
+func (a *ArrayLiteral) expressionNode() {}
 
 // Identifier represents an identifier in the AST
 type Identifier struct {
@@ -62,6 +68,7 @@ type Identifier struct {
 
 func (i *Identifier) Type() NodeType { return IdentifierNode }
 func (i *Identifier) String() string { return i.Name }
+func (i *Identifier) expressionNode() {}
 
 // SelfExpr represents a 'self' expression in the AST
 type SelfExpr struct{}

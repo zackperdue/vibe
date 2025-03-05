@@ -39,46 +39,9 @@ func (p *Parser) parseExpression(precedence int) ast.Node {
 	case lexer.NIL:
 		leftExp = &ast.NilLiteral{}
 	case lexer.FUNCTION:
-		// Handle anonymous function expressions
-		p.nextToken() // Skip 'function' keyword
-
-		// Check for opening parenthesis
-		if !p.curTokenIs(lexer.LPAREN) {
-			p.addError(fmt.Sprintf("Expected '(' after 'function', got %s instead at line %d, column %d",
-				p.curToken.Type, p.curToken.Line, p.curToken.Column))
-			return nil
-		}
-
-		// Parse function parameters
-		parameters := p.parseFunctionParameters()
-
-		// Check for 'do' keyword to start function body
-		if !p.curTokenIs(lexer.DO) {
-			p.addError(fmt.Sprintf("Expected 'do' after function parameters, got %s instead at line %d, column %d",
-				p.curToken.Type, p.curToken.Line, p.curToken.Column))
-			return nil
-		}
-
-		// Parse function body
-		p.nextToken() // move past 'do'
-		body := p.parseBlockStatements(lexer.END)
-
-		// Check for 'end' keyword to close function definition
-		if !p.curTokenIs(lexer.END) {
-			p.addError(fmt.Sprintf("Expected 'end' to close function expression, got %s instead at line %d, column %d",
-				p.curToken.Type, p.curToken.Line, p.curToken.Column))
-			return nil
-		}
-
-		// Consume the 'end' token
-		p.nextToken()
-
-		leftExp = &ast.FunctionDef{
-			Name:       "", // Anonymous function has no name
-			Parameters: parameters,
-			ReturnType: nil, // No return type for anonymous functions
-			Body:       body,
-		}
+		// Handle anonymous function expressions by using the updated parseFunctionDefinition
+		leftExp = p.parseFunctionDefinition()
+		return leftExp // Return early as parseFunctionDefinition already advances tokens
 	case lexer.LPAREN:
 		p.nextToken() // Skip the opening parenthesis
 		exp := p.parseExpression(ast.LOWEST)
@@ -245,13 +208,6 @@ func (p *Parser) parseCallExpression(function ast.Node) ast.Node {
 	// Handle empty argument list
 	if p.curTokenIs(lexer.RPAREN) {
 		p.nextToken() // Skip closing parenthesis
-
-		// Check if the next token is an infix operator
-		if isInfixOperator(p.curToken.Type) {
-			// If it is, parse the infix expression
-			return p.parseBinaryExpression(callExpr)
-		}
-
 		return callExpr
 	}
 
@@ -269,23 +225,10 @@ func (p *Parser) parseCallExpression(function ast.Node) ast.Node {
 	}
 
 	// Expect closing parenthesis
-	if !p.curTokenIs(lexer.RPAREN) {
-		if p.peekTokenIs(lexer.RPAREN) {
-			p.nextToken() // Move to the closing parenthesis
-		} else {
-			p.addError(fmt.Sprintf("Expected closing parenthesis, got %s at line %d, column %d",
-				p.peekToken.Type, p.peekToken.Line, p.peekToken.Column))
-			return nil
-		}
-	}
-
-	// Skip past the closing parenthesis
-	p.nextToken()
-
-	// Check if the current token is an infix operator
-	if isInfixOperator(p.curToken.Type) {
-		// If it is, parse the infix expression
-		return p.parseBinaryExpression(callExpr)
+	if !p.expectPeek(lexer.RPAREN) {
+		p.addError(fmt.Sprintf("Expected next token to be ), got %s instead at line %d, column %d",
+			p.peekToken.Type, p.peekToken.Line, p.peekToken.Column))
+		return nil
 	}
 
 	return callExpr
@@ -303,21 +246,11 @@ func (p *Parser) parseIndexExpression(array ast.Node) ast.Node {
 	// Parse the index expression
 	indexExpr.Index = p.parseExpression(ast.LOWEST)
 
-	// Check if we have the closing bracket
-	if p.curToken.Type == lexer.RBRACKET {
-		// Found closing bracket, advance past it
-		p.nextToken()
-	} else {
-		// No closing bracket found, report error
-		errorMsg := fmt.Sprintf("Expected next token to be ], got %s instead at line %d, column %d",
-			p.curToken.Type, p.curToken.Line, p.curToken.Column)
-		p.addError(errorMsg)
-
-		// Don't advance if we're at EOF
-		if p.curToken.Type != lexer.EOF {
-			// Try to recover by advancing to the next token
-			p.nextToken()
-		}
+	// Check for closing bracket
+	if !p.expectPeek(lexer.RBRACKET) {
+		p.addError(fmt.Sprintf("Expected next token to be ], got %s instead at line %d, column %d",
+			p.peekToken.Type, p.peekToken.Line, p.peekToken.Column))
+		return nil
 	}
 
 	return indexExpr

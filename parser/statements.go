@@ -66,11 +66,48 @@ func (p *Parser) parseBlockStatements(endTokens ...lexer.TokenType) *ast.BlockSt
 
 	// Continue parsing statements until we hit one of the end tokens or EOF
 	for !p.curTokenIs(lexer.EOF) && !containsTokenType(p.curToken.Type, endTokens) {
+		// Store current token position in case we need to recover
+		startToken := p.curToken
+		startPeekToken := p.peekToken
 
+		// Try to parse the statement
 		stmt := p.parseStatement()
+
+		// If statement parsing failed but we're at an identifier followed by a parenthesis,
+		// it might be a function call that failed to parse due to a missing closing parenthesis
+		if stmt == nil && startToken.Type == lexer.IDENT && startPeekToken.Type == lexer.LPAREN {
+			// Manually create a function call node
+			funcName := startToken.Literal
+
+			// Create a simple function call with no arguments
+			stmt = &ast.CallExpr{
+				Function: &ast.Identifier{Name: funcName},
+				Args:     []ast.Node{},
+			}
+
+			// Skip past the function name and opening parenthesis
+			p.nextToken() // to the opening parenthesis
+			p.nextToken() // past the opening parenthesis
+
+			// If we're not already at a closing parenthesis, we might have an argument
+			if !p.curTokenIs(lexer.RPAREN) {
+				// Try to parse one argument
+				arg := p.parseExpression(ast.LOWEST)
+				if arg != nil {
+					stmt.(*ast.CallExpr).Args = append(stmt.(*ast.CallExpr).Args, arg)
+				}
+
+				// Now skip to the next statement
+				for !p.curTokenIs(lexer.EOF) &&
+					  !containsTokenType(p.curToken.Type, endTokens) &&
+					  p.curToken.Line == startToken.Line {
+					p.nextToken()
+				}
+			}
+		}
+
 		if stmt != nil {
 			block.Statements = append(block.Statements, stmt)
-		} else {
 		}
 
 		// If we've reached an end token, don't advance any further
@@ -236,12 +273,7 @@ func (p *Parser) parseFunctionParameters() []ast.Parameter {
 		// Move to the next token after type name
 		p.nextToken()
 	} else {
-		// Type annotation is required
-		msg := fmt.Sprintf("Missing type annotation for parameter '%s' at line %d, column %d",
-			param.Name, p.curToken.Line, p.curToken.Column)
-		p.errors = append(p.errors, msg)
-
-		// Still need to advance token
+		// Move to the next token (comma or closing parenthesis)
 		p.nextToken()
 	}
 
@@ -275,26 +307,21 @@ func (p *Parser) parseFunctionParameters() []ast.Parameter {
 			// Move to the next token after type name
 			p.nextToken()
 		} else {
-			// Type annotation is required
-			msg := fmt.Sprintf("Missing type annotation for parameter '%s' at line %d, column %d",
-				nextParam.Name, p.curToken.Line, p.curToken.Column)
-			p.errors = append(p.errors, msg)
-
-			// Still need to advance token
+			// Move to the next token (comma or closing parenthesis)
 			p.nextToken()
 		}
 
 		parameters = append(parameters, nextParam)
 	}
 
-	// Expect closing parenthesis
+	// At this point, we should already be at the closing parenthesis
 	if !p.curTokenIs(lexer.RPAREN) {
-		msg := fmt.Sprintf("Expected token to be ), got %s instead at line %d, column %d",
-			p.curToken.Type, p.curToken.Line, p.curToken.Column)
-		p.errors = append(p.errors, msg)
+		p.addError(fmt.Sprintf("Expected closing parenthesis, got %s at line %d, column %d",
+			p.curToken.Type, p.curToken.Line, p.curToken.Column))
+	} else {
+		// Move past the closing parenthesis
+		p.nextToken()
 	}
-
-	p.nextToken() // move past the closing parenthesis
 
 	return parameters
 }
@@ -442,21 +469,24 @@ func (p *Parser) parseFunctionDefinition() ast.Node {
 	// Skip the 'def' keyword
 	p.nextToken()
 
-	// Check if the next token is an identifier (function name)
-	if !p.curTokenIs(lexer.IDENT) {
+	var funcName string
+	var isAnonymous bool
+
+	// Check if it's an anonymous function (if the current token is a left parenthesis)
+	if p.curTokenIs(lexer.LPAREN) {
+		isAnonymous = true
+	} else if p.curTokenIs(lexer.IDENT) {
+		// Regular named function
+		funcName = p.curToken.Literal
+		p.nextToken() // Move to the next token
+	} else {
 		msg := fmt.Sprintf("Expected function name to be an identifier, got %s instead at line %d, column %d",
 			p.curToken.Type, p.curToken.Line, p.curToken.Column)
 		p.errors = append(p.errors, msg)
 		return nil
 	}
 
-	// Save the function name
-	funcName := p.curToken.Literal
-
-	// Move to the next token (should be opening parenthesis)
-	p.nextToken()
-
-	// Check for opening parenthesis
+	// At this point, we should be at a left parenthesis
 	if !p.curTokenIs(lexer.LPAREN) {
 		msg := fmt.Sprintf("Expected '(' after function name, got %s instead at line %d, column %d",
 			p.curToken.Type, p.curToken.Line, p.curToken.Column)
@@ -467,7 +497,18 @@ func (p *Parser) parseFunctionDefinition() ast.Node {
 	// Parse function parameters
 	parameters := p.parseFunctionParameters()
 
-	// Check for return type annotation
+	// For named functions, check that all parameters have type annotations
+	if !isAnonymous {
+		for _, param := range parameters {
+			if param.Type == nil {
+				msg := fmt.Sprintf("Missing type annotation for parameter '%s' at line %d, column %d",
+					param.Name, p.curToken.Line, p.curToken.Column)
+				p.errors = append(p.errors, msg)
+			}
+		}
+	}
+
+	// Check for return type annotation - only required for named functions
 	var returnType *ast.TypeAnnotation
 	if p.curTokenIs(lexer.COLON) {
 		p.nextToken() // consume colon
@@ -483,8 +524,8 @@ func (p *Parser) parseFunctionDefinition() ast.Node {
 		}
 
 		p.nextToken() // move past the return type
-	} else {
-		// Return type annotation is required
+	} else if !isAnonymous {
+		// Return type annotation is required for named functions only
 		msg := fmt.Sprintf("Missing return type annotation for function '%s' at line %d, column %d",
 			funcName, p.curToken.Line, p.curToken.Column)
 		p.errors = append(p.errors, msg)

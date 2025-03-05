@@ -148,12 +148,12 @@ func TestNumberTokens(t *testing.T) {
 }
 
 func TestKeywords(t *testing.T) {
-	input := `def let var true false if else elsif return while nil puts`
+	input := `def true false if else elsif return while nil puts`
 
 	l := New(input)
 
 	expectedTokens := []TokenType{
-		FUNCTION, LET, VAR, TRUE, FALSE, IF, ELSE, ELSIF, RETURN, WHILE, NIL, PRINT,
+		FUNCTION, TRUE, FALSE, IF, ELSE, ELSIF, RETURN, WHILE, NIL, PRINT,
 	}
 
 	for i, expected := range expectedTokens {

@@ -326,8 +326,42 @@ func (p *Parser) parseStatement() ast.Node {
 
 		// Handle function calls (identifier followed by open parenthesis)
 		if p.peekTokenIs(lexer.LPAREN) {
+			// Special handling for common built-ins like print
+			if p.curToken.Literal == "print" || p.curToken.Literal == "puts" {
+				// Create a function call node
+				functionName := p.curToken.Literal
+				callExpr := &ast.CallExpr{
+					Function: &ast.Identifier{Name: functionName},
+					Args:     []ast.Node{},
+				}
+
+				// Skip to the opening parenthesis and consume it
+				p.nextToken() // to '('
+				p.nextToken() // past '('
+
+				// If we're not immediately at a closing parenthesis, parse an argument
+				if !p.curTokenIs(lexer.RPAREN) {
+					arg := p.parseExpression(ast.LOWEST)
+					if arg != nil {
+						callExpr.Args = append(callExpr.Args, arg)
+					}
+
+					// Look for the closing parenthesis or semicolon
+					if p.peekTokenIs(lexer.RPAREN) {
+						p.nextToken() // Consume the closing parenthesis
+					}
+				} else {
+					p.nextToken() // Skip the closing parenthesis
+				}
+
+				return callExpr
+			}
+
+			// When we encounter a function call like print(i), we need to parse it as an expression
 			expr := p.parseExpression(ast.LOWEST)
+
 			// No need to advance token here as parseExpression already does it
+			// This is a complete statement, so return it
 			return expr
 		}
 

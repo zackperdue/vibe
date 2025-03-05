@@ -248,7 +248,7 @@ func testIntegerValue(t *testing.T, obj Value, expected int) bool {
 		t.Errorf("object is not IntegerValue. got=%T (%+v)", obj, obj)
 		return false
 	}
-	if result.Value != expected {
+	if result.Value != int64(expected) {
 		t.Errorf("object has wrong value. got=%d, want=%d", result.Value, expected)
 		return false
 	}

@@ -286,7 +286,7 @@ func TestStrings(t *testing.T) {
 
 // TestKeywords tests the lexer's ability to tokenize keywords
 func TestKeywords(t *testing.T) {
-	input := `if else elsif for while do end def return class inherits self super new let var true false nil type require puts in`
+	input := `if else elsif for while do end def return class inherits self super new true false nil type require puts in`
 
 	tests := []struct {
 		expectedType    lexer.TokenType
@@ -306,8 +306,6 @@ func TestKeywords(t *testing.T) {
 		{lexer.SELF, "self"},
 		{lexer.SUPER, "super"},
 		{lexer.NEW, "new"},
-		{lexer.LET, "let"},
-		{lexer.VAR, "var"},
 		{lexer.TRUE, "true"},
 		{lexer.FALSE, "false"},
 		{lexer.NIL, "nil"},
@@ -346,7 +344,7 @@ y = 10`
 		expectedLine    int
 		expectedColumn  int
 	}{
-		{lexer.LET, "let", 1, 1},
+		{lexer.IDENT, "let", 1, 1},
 		{lexer.IDENT, "x", 1, 5},
 		{lexer.ASSIGN, "=", 1, 7},
 		{lexer.INT, "5", 1, 8},

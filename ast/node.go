@@ -32,6 +32,7 @@ const (
 	ForStmtNode      NodeType = "ForStmt"
 	PrintStmtNode    NodeType = "PrintStmt"
 	RequireStmtNode  NodeType = "RequireStmt"
+	ExpressionStmtNode NodeType = "ExpressionStmt"
 
 	// Declaration nodes
 	AssignmentNode   NodeType = "Assignment"

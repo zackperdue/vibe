@@ -31,6 +31,7 @@ func (b *BinaryExpr) String() string {
 	// For normal binary expressions
 	return fmt.Sprintf("(%s %s %s)", leftStr, b.Operator, rightStr)
 }
+func (b *BinaryExpr) expressionNode() {}
 
 // UnaryExpr represents a unary expression in the AST
 type UnaryExpr struct {
@@ -42,6 +43,7 @@ func (u *UnaryExpr) Type() NodeType { return UnaryExprNode }
 func (u *UnaryExpr) String() string {
 	return fmt.Sprintf("(%s%s)", u.Operator, u.Right.String())
 }
+func (u *UnaryExpr) expressionNode() {}
 
 // CallExpr represents a function call expression in the AST
 type CallExpr struct {
@@ -57,6 +59,7 @@ func (c *CallExpr) String() string {
 	}
 	return fmt.Sprintf("%s(%s)", c.Function.String(), strings.Join(args, ", "))
 }
+func (c *CallExpr) expressionNode() {}
 
 // IndexExpr represents an array index expression in the AST
 type IndexExpr struct {
@@ -69,6 +72,7 @@ func (ie *IndexExpr) String() string {
 	// The index expression is formatted with parentheses around the entire expression
 	return fmt.Sprintf("(%s[%s])", ie.Array.String(), ie.Index.String())
 }
+func (ie *IndexExpr) expressionNode() {}
 
 // DotExpr represents a dot expression in the AST (object.property)
 type DotExpr struct {
@@ -80,6 +84,7 @@ func (d *DotExpr) Type() NodeType { return DotExprNode }
 func (d *DotExpr) String() string {
 	return fmt.Sprintf("(%s.%s)", d.Object.String(), d.Property)
 }
+func (d *DotExpr) expressionNode() {}
 
 // MethodCall represents a method call on an object
 type MethodCall struct {
@@ -96,6 +101,7 @@ func (m *MethodCall) String() string {
 	}
 	return fmt.Sprintf("(%s.%s(%s))", m.Object.String(), m.Method, strings.Join(args, ", "))
 }
+func (m *MethodCall) expressionNode() {}
 
 // SuperCall represents a super call (super.method()) in the AST
 type SuperCall struct {
@@ -111,6 +117,7 @@ func (s *SuperCall) String() string {
 	}
 	return fmt.Sprintf("super.%s(%s)", s.Method, strings.Join(args, ", "))
 }
+func (s *SuperCall) expressionNode() {}
 
 // ClassInst represents a class instantiation (new ClassName()) in the AST
 type ClassInst struct {
@@ -127,3 +134,4 @@ func (c *ClassInst) String() string {
 	}
 	return fmt.Sprintf("new %s(%s)", c.Class.String(), strings.Join(args, ", "))
 }
+func (c *ClassInst) expressionNode() {}

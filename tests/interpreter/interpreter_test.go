@@ -3,7 +3,10 @@ package interpreter_test
 import (
 	"testing"
 
+	"github.com/vibe-lang/vibe/interpreter"
+	"github.com/vibe-lang/vibe/lexer"
 	"github.com/vibe-lang/vibe/object"
+	"github.com/vibe-lang/vibe/parser"
 )
 
 // TestEvalIntegerExpression tests the evaluation of integer expressions
@@ -300,12 +303,12 @@ func TestFunctionApplication(t *testing.T) {
 // TestClosures tests closures
 func TestClosures(t *testing.T) {
 	input := `
-let newAdder = function(x) do
-  function(y) do x + y end
-end;
+newAdder = def(x) do
+  def(y) do x + y end
+end
 
-let addTwo = newAdder(2);
-addTwo(2);`
+addTwo = newAdder(2)
+addTwo(2)`
 
 	testIntegerObject(t, testEval(t, input), 4)
 }
@@ -437,7 +440,14 @@ func TestForLoop(t *testing.T) {
 // Helper functions
 
 func testEval(t *testing.T, input string) object.Object {
-	return object.Eval(input)
+	l := lexer.New(input)
+	program, errors := parser.Parse(l)
+	if len(errors) > 0 {
+		t.Fatalf("parser errors: %v", errors)
+	}
+
+	env := object.NewEnvironment()
+	return interpreter.Eval(program, env)
 }
 
 func testIntegerObject(t *testing.T, obj object.Object, expected int64) bool {

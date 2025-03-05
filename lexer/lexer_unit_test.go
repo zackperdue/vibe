@@ -6,12 +6,12 @@ import (
 
 // TestNextToken tests the NextToken function of the lexer
 func TestNextTokenDetailed(t *testing.T) {
-	input := `let five = 5;
-let ten = 10;
-let add = def(x, y) {
+	input := `five = 5;
+ten = 10;
+add = def(x, y) {
   x + y;
 };
-let result = add(five, ten);
+result = add(five, ten);
 !-/*5;
 5 < 10 > 5;
 if (5 < 10) {
@@ -43,17 +43,14 @@ class Person {
 		expectedType    TokenType
 		expectedLiteral string
 	}{
-		{LET, "let"},
 		{IDENT, "five"},
 		{ASSIGN, "="},
 		{INT, "5"},
 		{SEMICOLON, ";"},
-		{LET, "let"},
 		{IDENT, "ten"},
 		{ASSIGN, "="},
 		{INT, "10"},
 		{SEMICOLON, ";"},
-		{LET, "let"},
 		{IDENT, "add"},
 		{ASSIGN, "="},
 		{FUNCTION, "def"},
@@ -69,7 +66,6 @@ class Person {
 		{SEMICOLON, ";"},
 		{RBRACE, "}"},
 		{SEMICOLON, ";"},
-		{LET, "let"},
 		{IDENT, "result"},
 		{ASSIGN, "="},
 		{IDENT, "add"},
@@ -145,7 +141,7 @@ class Person {
 		{INT, "3"},
 		{RBRACKET, "]"},
 		{LBRACE, "{"},
-		{LET, "let"},
+		{IDENT, "let"},
 		{IDENT, "x"},
 		{ASSIGN, "="},
 		{IDENT, "i"},

@@ -5,6 +5,32 @@ import (
 	"strings"
 )
 
+// Statement interface represents all statement nodes in the AST
+type Statement interface {
+	Node
+	statementNode()
+}
+
+// Expression interface represents all expression nodes in the AST
+type Expression interface {
+	Node
+	expressionNode()
+}
+
+// ExpressionStatement represents an expression used as a statement
+type ExpressionStatement struct {
+	Expression Node
+}
+
+func (es *ExpressionStatement) Type() NodeType { return ExpressionStmtNode }
+func (es *ExpressionStatement) String() string {
+	if es.Expression != nil {
+		return es.Expression.String()
+	}
+	return ""
+}
+func (es *ExpressionStatement) statementNode() {}
+
 // BlockStmt represents a block of statements in the AST
 type BlockStmt struct {
 	Statements []Node
@@ -16,8 +42,9 @@ func (b *BlockStmt) String() string {
 	for _, stmt := range b.Statements {
 		stmts = append(stmts, stmt.String())
 	}
-	return fmt.Sprintf("Block { %s }", strings.Join(stmts, "; "))
+	return strings.Join(stmts, "; ")
 }
+func (b *BlockStmt) statementNode() {}
 
 // ReturnStmt represents a return statement in the AST
 type ReturnStmt struct {
@@ -31,6 +58,7 @@ func (r *ReturnStmt) String() string {
 	}
 	return fmt.Sprintf("return %s", r.Value.String())
 }
+func (r *ReturnStmt) statementNode() {}
 
 // ElseIfBlock represents an else-if branch in an if statement
 type ElseIfBlock struct {
@@ -61,6 +89,7 @@ func (i *IfStmt) String() string {
 
 	return result
 }
+func (i *IfStmt) statementNode() {}
 
 // WhileStmt represents a while statement in the AST
 type WhileStmt struct {
@@ -72,6 +101,7 @@ func (w *WhileStmt) Type() NodeType { return WhileStmtNode }
 func (w *WhileStmt) String() string {
 	return fmt.Sprintf("while %s %s", w.Condition.String(), w.Body.String())
 }
+func (w *WhileStmt) statementNode() {}
 
 // ForStmt represents a for statement in the AST
 type ForStmt struct {
@@ -84,6 +114,7 @@ func (f *ForStmt) Type() NodeType { return ForStmtNode }
 func (f *ForStmt) String() string {
 	return fmt.Sprintf("for %s in %s %s", f.Iterator, f.Iterable.String(), f.Body.String())
 }
+func (f *ForStmt) statementNode() {}
 
 // PrintStmt represents a print statement in the AST
 type PrintStmt struct {
@@ -94,6 +125,7 @@ func (p *PrintStmt) Type() NodeType { return PrintStmtNode }
 func (p *PrintStmt) String() string {
 	return fmt.Sprintf("puts %s", p.Value.String())
 }
+func (p *PrintStmt) statementNode() {}
 
 // RequireStmt represents a require statement in the AST
 type RequireStmt struct {
@@ -104,6 +136,7 @@ func (r *RequireStmt) Type() NodeType { return RequireStmtNode }
 func (r *RequireStmt) String() string {
 	return fmt.Sprintf("require %q", r.Path)
 }
+func (r *RequireStmt) statementNode() {}
 
 // Assignment represents an assignment statement in the AST
 type Assignment struct {
@@ -118,3 +151,4 @@ func (a *Assignment) String() string {
 	}
 	return fmt.Sprintf("%s = %s", a.Name, a.Value.String())
 }
+func (a *Assignment) statementNode() {}
