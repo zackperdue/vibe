@@ -27,6 +27,14 @@ func New() *Interpreter {
 		return &NilValue{}
 	}, []types.Type{types.AnyType}, types.NilType)
 
+	// Register "puts" as an alias for "print"
+	env.RegisterBuiltin("puts", func(args []Value) Value {
+		for _, arg := range args {
+			fmt.Println(arg.Inspect())
+		}
+		return &NilValue{}
+	}, []types.Type{types.AnyType}, types.NilType)
+
 	env.RegisterBuiltin("len", func(args []Value) Value {
 		if len(args) != 1 {
 			return &StringValue{Value: "Error: wrong number of arguments: expected 1, got " + strconv.Itoa(len(args))}
@@ -263,12 +271,14 @@ func (i *Interpreter) evalBlockStatement(block *ast.BlockStmt, env *Environment)
 
 // evalIdentifier evaluates an identifier
 func (i *Interpreter) evalIdentifier(node *ast.Identifier, env *Environment) Value {
+	fmt.Printf("DEBUG: Looking up identifier '%s' in environment\n", node.Name)
+
 	if val, ok := env.Get(node.Name); ok {
-		// Found the variable, return its value
+		fmt.Printf("DEBUG: ✅ Found identifier '%s' = %s in environment\n", node.Name, val.Inspect())
 		return val
 	}
 
-	// Variable not found, return an error with more context
+	fmt.Printf("DEBUG: ⚠️ Identifier '%s' not found in environment\n", node.Name)
 	return &ErrorValue{Message: fmt.Sprintf("identifier not found: %s", node.Name)}
 }
 
@@ -440,6 +450,12 @@ func (i *Interpreter) evalInfixExpression(node *ast.BinaryExpr, env *Environment
 		return evalNumberInfixExpression(operator, left, right)
 	case left.Type() == "STRING" && right.Type() == "STRING":
 		return evalStringInfixExpression(operator, left, right)
+	case left.Type() == "STRING" && operator == "+":
+		// Convert right to string and concatenate
+		return &StringValue{Value: left.(*StringValue).Value + right.Inspect()}
+	case right.Type() == "STRING" && operator == "+":
+		// Convert left to string and concatenate
+		return &StringValue{Value: left.Inspect() + right.(*StringValue).Value}
 	case operator == "==":
 		return &BooleanValue{Value: left.Inspect() == right.Inspect()}
 	case operator == "!=":
@@ -549,24 +565,33 @@ func evalStringInfixExpression(operator string, left, right Value) Value {
 
 // evalAssignmentExpression evaluates an assignment expression
 func (i *Interpreter) evalAssignmentExpression(node *ast.Assignment, env *Environment) Value {
+	// Debug output
+	fmt.Printf("DEBUG: Evaluating assignment '%s'\n", node.Name)
+
 	// Check if the value is nil
 	if node.Value == nil {
+		fmt.Printf("DEBUG: ⚠️ Assignment value for '%s' is nil\n", node.Name)
 		return &ErrorValue{Message: "Cannot evaluate nil node"}
 	}
 
+	fmt.Printf("DEBUG: Value expression type: %T\n", node.Value)
 	value := i.eval(node.Value, env)
+	fmt.Printf("DEBUG: Evaluated value: %s (type: %s)\n", value.Inspect(), value.Type())
 
 	// Check if the value is an error
 	if _, isError := value.(*ErrorValue); isError {
+		fmt.Printf("DEBUG: ⚠️ Error evaluating assignment value: %s\n", value.Inspect())
 		return value
 	}
 
 	// Set the value in the environment
 	err := env.Set(node.Name, value)
 	if err != nil {
+		fmt.Printf("DEBUG: ⚠️ Error setting variable in environment: %s\n", err.Error())
 		return &ErrorValue{Message: err.Error()}
 	}
 
+	fmt.Printf("DEBUG: ✅ Successfully set variable '%s' = %s in environment\n", node.Name, value.Inspect())
 	return value
 }
 

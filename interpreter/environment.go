@@ -35,32 +35,58 @@ func NewEnclosedEnvironment(outer *Environment) *Environment {
 
 // Get retrieves a value from the environment
 func (e *Environment) Get(name string) (Value, bool) {
-	// Check for builtins first
+	fmt.Printf("DEBUG ENV: Looking up variable '%s' in environment\n", name)
+
+	// First check the current environment
+	obj, ok := e.store[name]
+	if ok {
+		fmt.Printf("DEBUG ENV: ✅ Found variable '%s' = %s in current environment\n",
+			name, obj.Inspect())
+		return obj, true
+	}
+
+	// Check if it's a built-in function
 	if builtin, ok := e.builtins[name]; ok {
+		fmt.Printf("DEBUG ENV: ✅ Found built-in function '%s'\n", name)
 		return builtin, true
 	}
 
-	// Then check variables
-	obj, ok := e.store[name]
-	if !ok && e.outer != nil {
-		obj, ok = e.outer.Get(name)
+	// If not found and we have an outer environment, look there
+	if e.outer != nil {
+		fmt.Printf("DEBUG ENV: Variable '%s' not found in current environment, checking outer\n", name)
+		obj, ok := e.outer.Get(name)
+		if ok {
+			fmt.Printf("DEBUG ENV: ✅ Found variable '%s' = %s in outer environment\n",
+				name, obj.Inspect())
+		} else {
+			fmt.Printf("DEBUG ENV: ⚠️ Variable '%s' not found in outer environment\n", name)
+		}
+		return obj, ok
 	}
-	return obj, ok
+
+	fmt.Printf("DEBUG ENV: ⚠️ Variable '%s' not found in any environment\n", name)
+	return nil, false
 }
 
 // Set sets a value in the environment
 func (e *Environment) Set(name string, val Value) error {
-	// Check if a value with this name already exists and has a type
-	existingType, hasType := e.types[name]
-	if hasType {
-		// Validate that the new value is compatible with the type
-		if !types.IsAssignable(val.VibeType(), existingType) {
-			return fmt.Errorf("Type error: Cannot assign value of type %s to variable %s of type %s",
-				val.VibeType().String(), name, existingType.String())
-		}
+	fmt.Printf("DEBUG ENV: Setting variable '%s' = %s (type: %s) in environment\n",
+		name, val.Inspect(), val.Type())
+
+	// Check if the value is nil
+	if val == nil {
+		fmt.Printf("DEBUG ENV: ⚠️ Attempted to set nil value for '%s'\n", name)
+		return fmt.Errorf("cannot set nil value for %s", name)
 	}
 
+	// Set the value in the current environment
 	e.store[name] = val
+
+	// Also set the type information (inferred from the value)
+	e.types[name] = val.VibeType()
+
+	fmt.Printf("DEBUG ENV: ✅ Variable '%s' set in environment with type %s\n",
+		name, val.VibeType().String())
 	return nil
 }
 

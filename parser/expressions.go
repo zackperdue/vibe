@@ -13,6 +13,9 @@ func (p *Parser) parseExpression(precedence int) ast.Node {
 	// Handle prefix expressions
 	var leftExp ast.Node
 
+	fmt.Printf("DEBUG: parseExpression - current token: '%s' (Type: %s, Line: %d, Col: %d)\n",
+		p.curToken.Literal, p.curToken.Type, p.curToken.Line, p.curToken.Column)
+
 	switch p.curToken.Type {
 	case lexer.IDENT:
 		leftExp = &ast.Identifier{Name: p.curToken.Literal}
@@ -38,6 +41,9 @@ func (p *Parser) parseExpression(precedence int) ast.Node {
 		leftExp = &ast.BooleanLiteral{Value: false}
 	case lexer.NIL:
 		leftExp = &ast.NilLiteral{}
+	case lexer.PRINT:
+		// Handle 'puts' as an identifier so it can be used as a function call
+		leftExp = &ast.Identifier{Name: "puts"}
 	case lexer.FUNCTION:
 		// Handle anonymous function expressions by using the updated parseFunctionDefinition
 		leftExp = p.parseFunctionDefinition()
@@ -47,13 +53,12 @@ func (p *Parser) parseExpression(precedence int) ast.Node {
 		exp := p.parseExpression(ast.LOWEST)
 
 		// Check for closing parenthesis but don't advance past it yet
-		if !p.curTokenIs(lexer.RPAREN) {
-			if !p.peekTokenIs(lexer.RPAREN) {
+		if !p.peekTokenIs(lexer.RPAREN) {
+			if !p.curTokenIs(lexer.RPAREN) {
 				p.addError(fmt.Sprintf("Expected next token to be %s, got %s instead at line %d, column %d",
 					lexer.RPAREN, p.peekToken.Type, p.peekToken.Line, p.peekToken.Column))
 				return nil
 			}
-			p.nextToken() // Move to the closing parenthesis
 		}
 
 		// Set leftExp to the parenthesized expression
@@ -76,16 +81,22 @@ func (p *Parser) parseExpression(precedence int) ast.Node {
 		operator := p.curToken.Literal
 		p.nextToken() // Consume the operator
 		operand := p.parseExpression(ast.PREFIX)
+		if operand == nil {
+			fmt.Printf("DEBUG: ⚠️ Nil operand for prefix expression with operator: %s\n", operator)
+			return nil
+		}
 		leftExp = &ast.UnaryExpr{Operator: operator, Right: operand}
 	case lexer.SELF:
 		leftExp = &ast.SelfExpr{}
 	default:
+		fmt.Printf("DEBUG: ⚠️ No prefix parse function for %s found\n", p.curToken.Type)
 		return nil
 	}
 
 	// Move to the next token after the prefix expression
 	// Only advance if we're not already at the next token
 	if !p.curTokenIs(lexer.LBRACKET) && !p.curTokenIs(lexer.LPAREN) && !p.curTokenIs(lexer.DOT) {
+		fmt.Printf("DEBUG: Advancing token after prefix expression\n")
 		p.nextToken()
 	}
 
@@ -101,20 +112,14 @@ func (p *Parser) parseExpression(precedence int) ast.Node {
 			break
 		}
 
-		switch p.curToken.Type {
-		case lexer.PLUS, lexer.MINUS, lexer.ASTERISK, lexer.SLASH, lexer.MODULO, lexer.POWER,
-			lexer.EQ, lexer.NOT_EQ, lexer.LT, lexer.GT, lexer.LT_EQ, lexer.GT_EQ,
-			lexer.AND, lexer.OR:
-			leftExp = p.parseBinaryExpression(leftExp)
-		case lexer.LPAREN:
-			leftExp = p.parseCallExpression(leftExp)
-		case lexer.LBRACKET:
-			leftExp = p.parseIndexExpression(leftExp)
-		case lexer.DOT:
-			leftExp = p.parseDotExpression(leftExp)
-		default:
-			return leftExp
-		}
+		fmt.Printf("DEBUG: Processing infix operator: '%s'\n", p.curToken.Literal)
+		leftExp = p.parseBinaryExpression(leftExp)
+	}
+
+	if leftExp == nil {
+		fmt.Printf("DEBUG: ⚠️ parseExpression returning nil for token: '%s'\n", p.curToken.Literal)
+	} else {
+		fmt.Printf("DEBUG: parseExpression returning type: %T\n", leftExp)
 	}
 
 	return leftExp
@@ -204,15 +209,26 @@ func (p *Parser) parseCallExpression(function ast.Node) ast.Node {
 
 	// Skip the opening parenthesis
 	p.nextToken()
+	fmt.Printf("DEBUG: parseCallExpression - parsing arguments, current token: '%s' (Type: %s, Line: %d, Col: %d)\n",
+		p.curToken.Literal, p.curToken.Type, p.curToken.Line, p.curToken.Column)
 
 	// Handle empty argument list
 	if p.curTokenIs(lexer.RPAREN) {
+		fmt.Printf("DEBUG: Empty argument list in function call\n")
 		p.nextToken() // Skip closing parenthesis
 		return callExpr
 	}
 
 	// Parse first argument
 	arg := p.parseExpression(ast.LOWEST)
+	if arg == nil {
+		fmt.Printf("DEBUG: ⚠️ Failed to parse argument in function call\n")
+		// Skip past the closing parenthesis if we encounter it
+		if p.curTokenIs(lexer.RPAREN) {
+			p.nextToken()
+		}
+		return callExpr
+	}
 	callExpr.Args = append(callExpr.Args, arg)
 
 	// Parse additional arguments
@@ -221,16 +237,28 @@ func (p *Parser) parseCallExpression(function ast.Node) ast.Node {
 		p.nextToken() // Move to next argument
 
 		arg := p.parseExpression(ast.LOWEST)
+		if arg == nil {
+			fmt.Printf("DEBUG: ⚠️ Failed to parse additional argument in function call\n")
+			continue
+		}
 		callExpr.Args = append(callExpr.Args, arg)
 	}
 
-	// Expect closing parenthesis
-	if !p.expectPeek(lexer.RPAREN) {
-		p.addError(fmt.Sprintf("Expected next token to be ), got %s instead at line %d, column %d",
-			p.peekToken.Type, p.peekToken.Line, p.peekToken.Column))
+	// Check for closing parenthesis
+	if p.curTokenIs(lexer.RPAREN) {
+		fmt.Printf("DEBUG: Found closing parenthesis at current token\n")
+		p.nextToken() // Skip the closing parenthesis
+	} else if p.peekTokenIs(lexer.RPAREN) {
+		fmt.Printf("DEBUG: Found closing parenthesis at peek token\n")
+		p.nextToken() // Move to the closing parenthesis
+		p.nextToken() // Skip the closing parenthesis
+	} else {
+		p.addError(fmt.Sprintf("Expected closing parenthesis, got %s instead at line %d, column %d",
+			p.curToken.Type, p.curToken.Line, p.curToken.Column))
 		return nil
 	}
 
+	fmt.Printf("DEBUG: Successfully parsed function call with %d arguments\n", len(callExpr.Args))
 	return callExpr
 }
 

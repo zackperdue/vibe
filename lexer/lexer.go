@@ -66,6 +66,14 @@ func (l *Lexer) NextToken() Token {
 			tok = Token{Type: EQ, Literal: string(ch) + string(l.ch), Line: line, Column: column}
 		} else {
 			tok = NewToken(ASSIGN, l.ch, line, column)
+
+			// Important: We need to advance past the '=' character
+			l.readChar()
+
+			// For debugging
+			fmt.Printf("DEBUG LEXER: Advanced past '=', now at: '%c' (code: %d)\n", l.ch, l.ch)
+
+			return tok
 		}
 	case '+':
 		if l.peekChar() == '=' {
@@ -245,21 +253,27 @@ func (l *Lexer) readNumber() Token {
 		}
 
 		// Return a float token
-		return Token{
+		token := Token{
 			Type:    FLOAT,
 			Literal: l.input[position:l.position],
 			Line:    line,
 			Column:  column,
 		}
+		fmt.Printf("DEBUG LEXER: Read float: %s at line %d, column %d\n",
+			token.Literal, token.Line, token.Column)
+		return token
 	}
 
 	// Return an integer token
-	return Token{
+	token := Token{
 		Type:    INT,
 		Literal: l.input[position:l.position],
 		Line:    line,
 		Column:  column,
 	}
+	fmt.Printf("DEBUG LEXER: Read integer: %s at line %d, column %d\n",
+		token.Literal, token.Line, token.Column)
+	return token
 }
 
 // readString reads a string and advances our position until it
@@ -326,4 +340,13 @@ func (l *Lexer) Error(message string) string {
 // addError adds an error message for the current token
 func (l *Lexer) addError(message string) {
 	fmt.Printf("%s\n", l.Error(message))
+}
+
+// GetRemainingInput returns the remaining unprocessed input
+// This is useful for debugging purposes
+func (l *Lexer) GetRemainingInput() string {
+	if l.position >= len(l.input) {
+		return ""
+	}
+	return l.input[l.position:]
 }

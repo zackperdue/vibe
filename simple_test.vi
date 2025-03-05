@@ -1,0 +1,7 @@
+# Simplest possible assignment test
+a = 2
+
+
+
+
+print(a)

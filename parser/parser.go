@@ -2,6 +2,7 @@ package parser
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/vibe-lang/vibe/ast"
 	"github.com/vibe-lang/vibe/lexer"
@@ -76,151 +77,55 @@ func (p *Parser) Errors() []string {
 	return p.errors
 }
 
-// Parse parses the input and returns an AST
+// Parse is a helper function that creates a new parser and parses the program
 func Parse(l *lexer.Lexer) (*ast.Program, []string) {
 	p := New(l)
 	program := p.parseProgram()
 	return program, p.Errors()
 }
 
-// parseProgram parses the program
+// parseProgram parses the entire program
 func (p *Parser) parseProgram() *ast.Program {
+	fmt.Printf("DEBUG: Starting to parse program\n")
 	program := &ast.Program{
 		Statements: []ast.Node{},
 	}
 
 	for !p.curTokenIs(lexer.EOF) {
-		// Check for "b" token and print details
-		if p.curToken.Literal == "b" {
+		fmt.Printf("DEBUG: Parsing next statement, current token: '%s' (Type: %s, Line: %d, Col: %d)\n",
+			p.curToken.Literal, p.curToken.Type, p.curToken.Line, p.curToken.Column)
 
-			// Special handling for 'b' token at line 11, column 1
-			if p.curToken.Line == 11 && p.curToken.Column == 1 && p.peekToken.Type == lexer.COLON {
-
-				// Save the variable name
-				name := p.curToken.Literal
-
-				// Skip to the colon
-				p.nextToken()
-
-				// Skip the colon
-				p.nextToken()
-
-				// Parse the type annotation
-				typeAnnotation := p.parseTypeAnnotation()
-
-				// Check for initialization
-				var value ast.Node
-				if p.curToken.Type == lexer.ASSIGN {
-					p.nextToken() // Skip '='
-					value = p.parseExpression(LOWEST)
-				}
-
-				// Create the variable declaration node
-				varDecl := &ast.VariableDecl{
-					Name:           name,
-					TypeAnnotation: typeAnnotation,
-					Value:          value,
-				}
-
-				program.Statements = append(program.Statements, varDecl)
-				p.nextToken() // Move to the next token to continue parsing
-				continue
-			}
+		// Skip semicolons between statements
+		if p.curTokenIs(lexer.SEMICOLON) {
+			p.nextToken()
+			continue
 		}
 
-		// Special handling for identifiers at column 1 (likely new statements)
-		if p.curToken.Type == lexer.IDENT && p.curToken.Column == 1 {
-
-			// Save current state to restore if needed
-			savedCurToken := p.curToken
-			savedPeekToken := p.peekToken
-
-			// Check if next token is a colon (direct variable declaration)
-			if p.peekTokenIs(lexer.COLON) {
-				// Direct case: b: string = "value"
-
-				// Save the variable name
-				name := p.curToken.Literal
-
-				// Skip to the colon
-				p.nextToken()
-
-				// Skip the colon
-				p.nextToken()
-
-				// Parse the type annotation
-				typeAnnotation := p.parseTypeAnnotation()
-
-				// Check for initialization
-				var value ast.Node
-				if p.curToken.Type == lexer.ASSIGN {
-					p.nextToken() // Skip '='
-					value = p.parseExpression(LOWEST)
-				}
-
-				// Create the variable declaration node
-				varDecl := &ast.VariableDecl{
-					Name:           name,
-					TypeAnnotation: typeAnnotation,
-					Value:          value,
-				}
-
-				program.Statements = append(program.Statements, varDecl)
-				p.nextToken() // Move to the next token to continue parsing
-				continue
-			}
-
-			// Restore state for normal parsing
-			p.curToken = savedCurToken
-			p.peekToken = savedPeekToken
+		// Skip over closing parentheses, which might occur after a function call
+		if p.curTokenIs(lexer.RPAREN) {
+			fmt.Printf("DEBUG: Skipping over closing parenthesis\n")
+			p.nextToken()
+			continue
 		}
 
-		// Special case for variable declarations with type annotations
-		if p.isStartOfStatement() && p.curToken.Type == lexer.IDENT && p.peekToken.Type == lexer.COLON {
-
-			// Save the variable name
-			name := p.curToken.Literal
-
-			// Skip to the colon
-			p.nextToken()
-
-			// Skip the colon
-			p.nextToken()
-
-			// Parse the type annotation
-			typeAnnotation := p.parseTypeAnnotation()
-
-			// Check for initialization
-			var value ast.Node
-			if p.curToken.Type == lexer.ASSIGN {
-				p.nextToken() // Skip '='
-				value = p.parseExpression(LOWEST)
-			}
-
-			// Create the variable declaration node
-			varDecl := &ast.VariableDecl{
-				Name:           name,
-				TypeAnnotation: typeAnnotation,
-				Value:          value,
-			}
-
-			program.Statements = append(program.Statements, varDecl)
+		fmt.Printf("DEBUG: Parsing regular statement\n")
+		stmt := p.parseStatement()
+		if stmt != nil {
+			// Add to the program's statements
+			program.Statements = append(program.Statements, stmt)
+			fmt.Printf("DEBUG: Added statement of type %T\n", stmt)
 		} else {
-			// Normal statement parsing
-			stmt := p.parseStatement()
-			if stmt != nil {
-				program.Statements = append(program.Statements, stmt)
-			} else {
-			}
+			fmt.Printf("DEBUG: ⚠️ Statement was nil, skipping\n")
 		}
 
-		// Only advance to the next token if we haven't reached EOF
-		// This prevents skipping past EOF and causing issues
-		if !p.curTokenIs(lexer.EOF) {
-			p.nextToken()
+		// Move to the next token to start parsing the next statement
+		// This should skip any tokens that weren't consumed by the parser
+		if p.curTokenIs(lexer.SEMICOLON) {
+			p.nextToken() // Skip the semicolon before moving to the next statement
 		}
 	}
 
+	fmt.Printf("DEBUG: Finished parsing program, found %d statements\n", len(program.Statements))
 	return program
 }
 
@@ -248,164 +153,231 @@ func (p *Parser) isStartOfStatement() bool {
 
 // parseStatement parses a statement
 func (p *Parser) parseStatement() ast.Node {
-
 	switch p.curToken.Type {
-	case lexer.IDENT:
-		// Check if this is a variable declaration with type annotation (identifier followed by colon)
-		if p.peekTokenIs(lexer.COLON) {
-			return p.parseVariableDeclaration()
-		}
-
-		// If this identifier is at the start of a line and the next token looks like part of a type annotation,
-		// this may be a multi-line variable declaration
-		if p.curToken.Column == 1 && p.peekToken.Type == lexer.IDENT &&
-		   p.peekToken.Line > p.curToken.Line {
-			// Peek ahead to see if there's a colon after this identifier on a later line
-			savedCurToken := p.curToken
-			savedPeekToken := p.peekToken
-
-			// Look ahead for a colon
-			found := false
-			for i := 0; i < 3; i++ { // Look ahead up to 3 tokens
-				p.nextToken()
-				if p.curToken.Type == lexer.COLON {
-					found = true
-					break
-				}
-				// If we hit end of file or a keyword, stop looking
-				if p.curToken.Type == lexer.EOF || isKeyword(p.curToken.Type) {
-					break
-				}
-			}
-
-			// Restore the original position
-			p.curToken = savedCurToken
-			p.peekToken = savedPeekToken
-
-			if found {
-				return p.parseVariableDeclaration()
-			}
-		}
-
-		// Check if this is an assignment
-		if p.peekTokenIs(lexer.ASSIGN) || p.peekTokenIs(lexer.PLUS_ASSIGN) ||
-		   p.peekTokenIs(lexer.MINUS_ASSIGN) || p.peekTokenIs(lexer.MUL_ASSIGN) ||
-		   p.peekTokenIs(lexer.DIV_ASSIGN) || p.peekTokenIs(lexer.MOD_ASSIGN) {
-
-			// Special handling for type declarations with generic params
-			if p.peekTokenIs(lexer.ASSIGN) {
-				// Save current position
-				currentToken := p.curToken
-				peekToken := p.peekToken
-
-				// Skip identifier and =
-				p.nextToken() // Skip to =
-				p.nextToken() // Skip =
-
-				// If next token is an identifier and followed by <, this is likely a type with generic params
-				if p.curToken.Type == lexer.IDENT && p.peekTokenIs(lexer.LT) {
-					// Create a synthetic type declaration
-					typeName := currentToken.Literal
-
-					// Parse the type annotation (Array<string>)
-					typeValue := p.parseTypeAnnotation()
-
-					return &ast.TypeDeclaration{
-						Name:      typeName,
-						TypeValue: typeValue,
-					}
-				}
-
-				// Restore position if not a type declaration
-				p.curToken = currentToken
-				p.peekToken = peekToken
-			}
-
-			return p.parseAssignment()
-		}
-
-		// Handle function calls (identifier followed by open parenthesis)
-		if p.peekTokenIs(lexer.LPAREN) {
-			// Special handling for common built-ins like print
-			if p.curToken.Literal == "print" || p.curToken.Literal == "puts" {
-				// Create a function call node
-				functionName := p.curToken.Literal
-				callExpr := &ast.CallExpr{
-					Function: &ast.Identifier{Name: functionName},
-					Args:     []ast.Node{},
-				}
-
-				// Skip to the opening parenthesis and consume it
-				p.nextToken() // to '('
-				p.nextToken() // past '('
-
-				// If we're not immediately at a closing parenthesis, parse an argument
-				if !p.curTokenIs(lexer.RPAREN) {
-					arg := p.parseExpression(ast.LOWEST)
-					if arg != nil {
-						callExpr.Args = append(callExpr.Args, arg)
-					}
-
-					// Look for the closing parenthesis or semicolon
-					if p.peekTokenIs(lexer.RPAREN) {
-						p.nextToken() // Consume the closing parenthesis
-					}
-				} else {
-					p.nextToken() // Skip the closing parenthesis
-				}
-
-				return callExpr
-			}
-
-			// When we encounter a function call like print(i), we need to parse it as an expression
-			expr := p.parseExpression(ast.LOWEST)
-
-			// No need to advance token here as parseExpression already does it
-			// This is a complete statement, so return it
-			return expr
-		}
-
-		// Otherwise, it's a simple identifier expression
-		return p.parseExpression(ast.LOWEST)
-	case lexer.COLON:
-		// This is part of a variable declaration with type annotation
-		// The IDENT token has already been processed, so we need to handle the type annotation
-		// We'll skip this token and let the next token (the type) be processed
-		return nil
-	case lexer.REQUIRE:
-		return p.parseRequireStatement()
-	case lexer.TYPE:
-		return p.parseTypeDeclaration()
-	case lexer.FOR:
-		return p.parseForStatement()
+	case lexer.LET:
+		return p.parseLetStatement()
+	case lexer.RETURN:
+		return p.parseReturnStatement()
 	case lexer.IF:
 		return p.parseIfStatement()
+	case lexer.WHILE:
+		return p.parseWhileStatement()
+	case lexer.FOR:
+		return p.parseForStatement()
 	case lexer.FUNCTION:
 		return p.parseFunctionDefinition()
 	case lexer.CLASS:
 		return p.parseClassDefinition()
+	case lexer.REQUIRE:
+		return p.parseRequireStatement()
 	default:
-		// For everything else, try to parse as an expression
-		return p.parseExpression(ast.LOWEST)
+		// Check for assignment (a = 1)
+		if p.curTokenIs(lexer.IDENT) && p.peekTokenIs(lexer.ASSIGN) {
+			return p.parseAssignment()
+		}
+		// Otherwise, it's an expression statement
+		return p.parseExpressionStatement()
 	}
+}
+
+// parseExpressionStatement parses an expression statement
+func (p *Parser) parseExpressionStatement() ast.Node {
+	stmt := &ast.ExpressionStatement{
+		Expression: p.parseExpression(ast.LOWEST),
+	}
+
+	// Optional semicolon
+	if p.peekTokenIs(lexer.SEMICOLON) {
+		p.nextToken()
+	}
+
+	return stmt
+}
+
+// parseLetStatement parses a let statement
+func (p *Parser) parseLetStatement() ast.Node {
+	stmt := &ast.VariableDecl{
+		Name: "",
+	}
+
+	// Skip 'let' keyword
+	p.nextToken()
+
+	// Parse variable name
+	if !p.curTokenIs(lexer.IDENT) {
+		p.addError(fmt.Sprintf("Expected identifier after 'let', got %s", p.curToken.Type))
+		return nil
+	}
+
+	stmt.Name = p.curToken.Literal
+
+	// Parse optional type annotation
+	if p.peekTokenIs(lexer.COLON) {
+		p.nextToken() // Skip colon
+		p.nextToken() // Move to type name
+		stmt.TypeAnnotation = p.parseTypeAnnotation()
+	}
+
+	// Expect equals sign
+	if !p.expectPeek(lexer.ASSIGN) {
+		return nil
+	}
+
+	// Skip equals sign
+	p.nextToken()
+
+	// Parse value expression
+	stmt.Value = p.parseExpression(ast.LOWEST)
+
+	// Optional semicolon
+	if p.peekTokenIs(lexer.SEMICOLON) {
+		p.nextToken()
+	}
+
+	return stmt
+}
+
+// parseReturnStatement parses a return statement
+func (p *Parser) parseReturnStatement() ast.Node {
+	stmt := &ast.ReturnStmt{}
+
+	// Skip 'return' keyword
+	p.nextToken()
+
+	// Parse return value (if any)
+	if !p.curTokenIs(lexer.SEMICOLON) {
+		stmt.Value = p.parseExpression(ast.LOWEST)
+	}
+
+	// Optional semicolon
+	if p.peekTokenIs(lexer.SEMICOLON) {
+		p.nextToken()
+	}
+
+	return stmt
+}
+
+// parseAssignment parses an assignment statement
+func (p *Parser) parseAssignment() ast.Node {
+	fmt.Printf("DEBUG PARSER: parseAssignment starting with token: %+v\n", p.curToken)
+
+	// Parse the left side (identifier)
+	left := &ast.Identifier{Name: p.curToken.Literal}
+
+	// Skip to the equals sign
+	p.nextToken()
+
+	// Skip the equals sign
+	p.nextToken()
+
+	fmt.Printf("DEBUG PARSER: After equals, current token is: %+v\n", p.curToken)
+
+	// Parse the right side (value)
+	var right ast.Node
+
+	// Special case for integer literals
+	if p.curTokenIs(lexer.INT) {
+		fmt.Printf("DEBUG PARSER: Found integer literal: %s\n", p.curToken.Literal)
+		value, err := strconv.ParseFloat(p.curToken.Literal, 64)
+		if err != nil {
+			p.addError(fmt.Sprintf("Could not parse %q as integer", p.curToken.Literal))
+			return nil
+		}
+		right = &ast.NumberLiteral{Value: value, IsInt: true}
+	} else {
+		right = p.parseExpression(ast.LOWEST)
+	}
+
+	// Create the assignment node
+	assignment := &ast.Assignment{
+		Name:  left.Name,
+		Value: right,
+	}
+
+	fmt.Printf("DEBUG PARSER: Parsed assignment %s = %v\n", left.Name, right)
+
+	// Optional semicolon
+	if p.peekTokenIs(lexer.SEMICOLON) {
+		p.nextToken()
+	}
+
+	return assignment
+}
+
+// parseClassDefinition parses a class definition
+func (p *Parser) parseClassDefinition() ast.Node {
+	class := &ast.ClassDef{
+		Name:    "",
+		Methods: []ast.Node{},
+	}
+
+	// Skip 'class' keyword
+	p.nextToken()
+
+	// Parse class name
+	if !p.curTokenIs(lexer.IDENT) {
+		p.addError(fmt.Sprintf("Expected identifier after 'class', got %s", p.curToken.Type))
+		return nil
+	}
+
+	class.Name = p.curToken.Literal
+
+	// Expect opening brace
+	if !p.expectPeek(lexer.LBRACE) {
+		return nil
+	}
+
+	// Skip opening brace
+	p.nextToken()
+
+	// Parse methods
+	for !p.curTokenIs(lexer.RBRACE) && !p.curTokenIs(lexer.EOF) {
+		// Parse method
+		if p.curTokenIs(lexer.FUNCTION) {
+			method := p.parseFunctionDefinition()
+			if method != nil {
+				class.Methods = append(class.Methods, method)
+			}
+		} else {
+			p.addError(fmt.Sprintf("Expected method definition, got %s", p.curToken.Type))
+			return nil
+		}
+	}
+
+	// Skip closing brace
+	if !p.curTokenIs(lexer.RBRACE) {
+		p.addError(fmt.Sprintf("Expected closing brace, got %s", p.curToken.Type))
+		return nil
+	}
+	p.nextToken()
+
+	return class
 }
 
 // parseRequireStatement parses a require statement
 func (p *Parser) parseRequireStatement() ast.Node {
+	stmt := &ast.RequireStmt{}
+
 	// Skip 'require' keyword
 	p.nextToken()
 
-	// Parse path string
-	if p.curToken.Type != lexer.STRING {
-		p.addError(fmt.Sprintf("Expected string path after 'require', got %s", p.curToken.Type))
+	// Parse module name
+	if !p.curTokenIs(lexer.STRING) {
+		p.addError(fmt.Sprintf("Expected string after 'require', got %s", p.curToken.Type))
 		return nil
 	}
 
-	path := p.curToken.Literal
+	stmt.Path = p.curToken.Literal
 
-	return &ast.RequireStmt{
-		Path: path,
+	// Optional semicolon
+	if p.peekTokenIs(lexer.SEMICOLON) {
+		p.nextToken()
 	}
+
+	// Mark that we've seen a require statement
+	p.seenNonRequireStmt = true
+
+	return stmt
 }
 
 // Helper methods for token checking
@@ -439,24 +411,15 @@ func (p *Parser) addError(msg string) {
 		msg, p.curToken.Line, p.curToken.Column))
 }
 
-// parseAssignment parses an assignment statement
-func (p *Parser) parseAssignment() ast.Node {
-	// Save the variable name
-	name := p.curToken.Literal
-
-	// Skip to the assignment operator
-	p.nextToken()
-
-	// Skip the assignment operator
-	p.nextToken()
-
-	// Parse the value
-	value := p.parseExpression(LOWEST)
-
-	return &ast.Assignment{
-		Name:  name,
-		Value: value,
+// Helper method to read an integer value from the current token
+func (p *Parser) readInt() int64 {
+	val, err := strconv.ParseInt(p.curToken.Literal, 0, 64)
+	if err != nil {
+		msg := fmt.Sprintf("could not parse %q as integer", p.curToken.Literal)
+		p.errors = append(p.errors, msg)
+		return 0
 	}
+	return val
 }
 
 // isKeyword checks if a token type is a keyword
@@ -493,4 +456,70 @@ func isKeyword(t lexer.TokenType) bool {
 	}
 
 	return false
+}
+
+// parseTypeAnnotation parses a type annotation
+func (p *Parser) parseTypeAnnotation() *ast.TypeAnnotation {
+	// A type annotation must start with an identifier (the type name)
+	if !p.curTokenIs(lexer.IDENT) {
+		p.addError(fmt.Sprintf("Expected type name, got %s", p.curToken.Type))
+		return &ast.TypeAnnotation{TypeName: "any"} // Default to any type
+	}
+
+	// Create the type annotation with the current token as the type name
+	typeAnnotation := &ast.TypeAnnotation{
+		TypeName: p.curToken.Literal,
+	}
+
+	// Check if there's a generic type parameter list starting with '<'
+	if p.peekTokenIs(lexer.LT) {
+		p.nextToken() // Advance to '<'
+		p.nextToken() // Advance to first type parameter
+
+		// Initialize the type parameters slice
+		var typeParams []ast.Node
+
+		// Parse type parameters until we hit the closing '>'
+		for !p.curTokenIs(lexer.GT) && !p.curTokenIs(lexer.EOF) {
+			// Parse the type parameter, which could be a simple type or another generic type
+			var param ast.Node
+
+			if p.curTokenIs(lexer.IDENT) {
+				// Check if this is a generic type (has a '<' after it)
+				if p.peekTokenIs(lexer.LT) {
+					// This is a nested generic type
+					param = p.parseTypeAnnotation() // This will handle the nested generic
+				} else {
+					// Simple type
+					param = &ast.TypeAnnotation{TypeName: p.curToken.Literal}
+					p.nextToken() // Advance past the identifier
+				}
+			} else {
+				p.addError(fmt.Sprintf("Expected type parameter name, got %s", p.curToken.Type))
+				break
+			}
+
+			// Add the parameter to our list
+			typeParams = append(typeParams, param)
+
+			// If next token is a comma, skip it and continue
+			if p.peekTokenIs(lexer.COMMA) {
+				p.nextToken() // Advance to the comma
+				p.nextToken() // Advance past the comma
+			}
+		}
+
+		// Store the type parameters in the type annotation
+		typeAnnotation.TypeParams = typeParams
+
+		// Advance past the closing '>'
+		if p.curTokenIs(lexer.GT) {
+			p.nextToken()
+		}
+	} else {
+		// If there are no type parameters, advance past the type name
+		p.nextToken()
+	}
+
+	return typeAnnotation
 }
