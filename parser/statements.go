@@ -314,13 +314,22 @@ func (p *Parser) parseFunctionParameters() []ast.Parameter {
 		parameters = append(parameters, nextParam)
 	}
 
-	// At this point, we should already be at the closing parenthesis
+	// Check for closing parenthesis
 	if !p.curTokenIs(lexer.RPAREN) {
-		p.addError(fmt.Sprintf("Expected closing parenthesis, got %s at line %d, column %d",
-			p.curToken.Type, p.curToken.Line, p.curToken.Column))
-	} else {
-		// Move past the closing parenthesis
-		p.nextToken()
+		msg := fmt.Sprintf("Expected next token to be %s, got %s instead at line %d, column %d",
+			lexer.RPAREN, p.curToken.Type, p.curToken.Line, p.curToken.Column)
+		p.addError(msg)
+
+		// Try to recover by skipping tokens until we find a closing parenthesis or reach another significant token
+		for !p.curTokenIs(lexer.RPAREN) && !p.curTokenIs(lexer.EOF) &&
+			!p.curTokenIs(lexer.COLON) && !p.curTokenIs(lexer.DO) {
+			p.nextToken()
+		}
+	}
+
+	// If we successfully found the closing parenthesis, advance past it
+	if p.curTokenIs(lexer.RPAREN) {
+		p.nextToken() // Move past the closing parenthesis
 	}
 
 	return parameters

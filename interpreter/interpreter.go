@@ -120,32 +120,17 @@ func (i *Interpreter) Eval(node ast.Node) Value {
 
 // eval evaluates an AST node in a given environment
 func (i *Interpreter) eval(node ast.Node, env *Environment) Value {
+	if node == nil {
+		return &ErrorValue{Message: "Cannot evaluate nil node"}
+	}
+
 	switch node := node.(type) {
-	// Statements
 	case *ast.Program:
 		return i.evalProgram(node, env)
 	case *ast.BlockStmt:
 		return i.evalBlockStatement(node, env)
-	// Since there's no ExpressionStmt type in the ast package,
-	// we'll evaluate expressions directly
-	case *ast.VariableDecl:
-		return i.evalVariableDeclaration(node, env)
-	case *ast.FunctionDef:
-		return i.evalFunctionDefinition(node, env)
-	case *ast.ReturnStmt:
-		return i.evalReturnStatement(node, env)
-	case *ast.IfStmt:
-		return i.evalIfStatement(node, env)
-	case *ast.ForStmt:
-		return i.evalForStatement(node, env)
-	case *ast.ClassDef:
-		return i.evalClassDefinition(node, env)
-	case *ast.RequireStmt:
-		return i.evalImportStatement(node, env)
-
-	// Expressions
-	case *ast.Identifier:
-		return i.evalIdentifier(node, env)
+	case *ast.ExpressionStatement:
+		return i.eval(node.Expression, env)
 	case *ast.NumberLiteral:
 		if node.IsInt {
 			return &IntegerValue{Value: int64(node.Value)}
@@ -157,14 +142,26 @@ func (i *Interpreter) eval(node ast.Node, env *Environment) Value {
 		return &BooleanValue{Value: node.Value}
 	case *ast.NilLiteral:
 		return &NilValue{}
+	case *ast.Identifier:
+		return i.evalIdentifier(node, env)
+	case *ast.VariableDecl:
+		return i.evalVariableDeclaration(node, env)
+	case *ast.ReturnStmt:
+		return i.evalReturnStatement(node, env)
+	case *ast.IfStmt:
+		return i.evalIfStatement(node, env)
+	case *ast.ForStmt:
+		return i.evalForStatement(node, env)
+	case *ast.ClassDef:
+		return i.evalClassDefinition(node, env)
+	case *ast.RequireStmt:
+		return i.evalImportStatement(node, env)
 	case *ast.UnaryExpr:
 		return i.evalPrefixExpression(node, env)
 	case *ast.BinaryExpr:
 		return i.evalInfixExpression(node, env)
 	case *ast.Assignment:
 		return i.evalAssignmentExpression(node, env)
-	case *ast.CallExpr:
-		return i.evalCallExpression(node, env)
 	case *ast.ArrayLiteral:
 		return i.evalArrayLiteral(node, env)
 	case *ast.IndexExpr:
@@ -173,8 +170,57 @@ func (i *Interpreter) eval(node ast.Node, env *Environment) Value {
 		return i.evalMemberExpression(node, env)
 	case *ast.MethodCall:
 		return i.evalMethodCallExpression(node, env)
+	case *ast.FunctionDef:
+		return i.evalFunctionDefinition(node, env)
+	case *ast.CallExpr:
+		function := i.eval(node.Function, env)
+		if _, isError := function.(*ErrorValue); isError {
+			return function
+		}
+
+		args := []Value{}
+		for _, arg := range node.Args {
+			evaluated := i.eval(arg, env)
+			if _, isError := evaluated.(*ErrorValue); isError {
+				return evaluated
+			}
+			args = append(args, evaluated)
+		}
+
+		// Handle built-in functions
+		if builtin, ok := function.(*BuiltinFunction); ok {
+			return builtin.Fn(args)
+		}
+
+		// Handle user-defined functions
+		if fn, ok := function.(*FunctionValue); ok {
+			// Create a new environment for the function
+			functionEnv := NewEnclosedEnvironment(fn.Env)
+
+			// Bind arguments to parameters
+			for i, param := range fn.Parameters {
+				if i < len(args) {
+					functionEnv.Set(param.Name, args[i])
+				} else {
+					// Missing argument, use nil
+					functionEnv.Set(param.Name, &NilValue{})
+				}
+			}
+
+			// Evaluate the function body
+			result := i.evalBlockStatement(fn.Body, functionEnv)
+
+			// Unwrap return value
+			if returnValue, ok := result.(*ReturnValue); ok {
+				return returnValue.Value
+			}
+
+			return result
+		}
+
+		return &ErrorValue{Message: fmt.Sprintf("Not a function: %s", function.Type())}
 	default:
-		return &StringValue{Value: fmt.Sprintf("Unknown node type: %T", node)}
+		return &ErrorValue{Message: fmt.Sprintf("Unknown node type: %T", node)}
 	}
 }
 
@@ -222,8 +268,8 @@ func (i *Interpreter) evalIdentifier(node *ast.Identifier, env *Environment) Val
 		return val
 	}
 
-	// Variable not found, return an error
-	return &StringValue{Value: fmt.Sprintf("identifier not found: %s", node.Name)}
+	// Variable not found, return an error with more context
+	return &ErrorValue{Message: fmt.Sprintf("identifier not found: %s", node.Name)}
 }
 
 // evalVariableDeclaration evaluates a variable declaration
@@ -231,6 +277,11 @@ func (i *Interpreter) evalVariableDeclaration(node *ast.VariableDecl, env *Envir
 	var value Value
 	if node.Value != nil {
 		value = i.eval(node.Value, env)
+
+		// Check if the value is an error
+		if _, isError := value.(*ErrorValue); isError {
+			return value
+		}
 	} else {
 		// If no value is provided, initialize with nil
 		value = &NilValue{}
@@ -242,24 +293,24 @@ func (i *Interpreter) evalVariableDeclaration(node *ast.VariableDecl, env *Envir
 
 		// Check that the value is compatible with the declared type
 		if !types.IsAssignable(value.VibeType(), varType) {
-			return &StringValue{Value: fmt.Sprintf("Type error: Cannot assign value of type %s to variable of type %s",
+			return &ErrorValue{Message: fmt.Sprintf("Type error: Cannot assign value of type %s to variable of type %s",
 				value.VibeType().String(), varType.String())}
 		}
 
 		// Set with type check
 		err := env.SetWithType(node.Name, value, varType)
 		if err != nil {
-			return &StringValue{Value: err.Error()}
+			return &ErrorValue{Message: err.Error()}
 		}
 	} else {
 		// No type annotation, infer from the value
 		err := env.Set(node.Name, value)
 		if err != nil {
-			return &StringValue{Value: err.Error()}
+			return &ErrorValue{Message: err.Error()}
 		}
 	}
 
-	return &NilValue{}
+	return value // Return the value instead of nil
 }
 
 // evalReturnStatement evaluates a return statement
@@ -306,7 +357,10 @@ func (i *Interpreter) evalForStatement(node *ast.ForStmt, env *Environment) Valu
 	case *ArrayValue:
 		for _, element := range iter.Elements {
 			// Bind the current element to the iterator variable
-			loopEnv.Set(node.Iterator, element)
+			err := loopEnv.Set(node.Iterator, element)
+			if err != nil {
+				return &ErrorValue{Message: err.Error()}
+			}
 
 			// Execute the body
 			result := i.eval(node.Body, loopEnv)
@@ -315,7 +369,7 @@ func (i *Interpreter) evalForStatement(node *ast.ForStmt, env *Environment) Valu
 			}
 		}
 	default:
-		return &StringValue{Value: fmt.Sprintf("Type error: for loop requires an array to iterate over, got %s", iter.Type())}
+		return &ErrorValue{Message: fmt.Sprintf("Type error: for loop requires an array to iterate over, got %s", iter.Type())}
 	}
 
 	return &NilValue{}
@@ -368,21 +422,30 @@ func (i *Interpreter) evalPrefixExpression(node *ast.UnaryExpr, env *Environment
 // evalInfixExpression evaluates an infix expression
 func (i *Interpreter) evalInfixExpression(node *ast.BinaryExpr, env *Environment) Value {
 	left := i.eval(node.Left, env)
+	if _, isError := left.(*ErrorValue); isError {
+		return left
+	}
+
 	right := i.eval(node.Right, env)
+	if _, isError := right.(*ErrorValue); isError {
+		return right
+	}
+
+	operator := node.Operator
 
 	switch {
 	case left.Type() == "INTEGER" && right.Type() == "INTEGER":
-		return evalIntegerInfixExpression(node.Operator, left, right)
-	case (left.Type() == "INTEGER" || left.Type() == "FLOAT") && (right.Type() == "INTEGER" || right.Type() == "FLOAT"):
-		return evalNumberInfixExpression(node.Operator, left, right)
+		return evalIntegerInfixExpression(operator, left, right)
+	case left.Type() == "INTEGER" && right.Type() == "FLOAT" || left.Type() == "FLOAT" && right.Type() == "INTEGER" || left.Type() == "FLOAT" && right.Type() == "FLOAT":
+		return evalNumberInfixExpression(operator, left, right)
 	case left.Type() == "STRING" && right.Type() == "STRING":
-		return evalStringInfixExpression(node.Operator, left, right)
-	case node.Operator == "==":
+		return evalStringInfixExpression(operator, left, right)
+	case operator == "==":
 		return &BooleanValue{Value: left.Inspect() == right.Inspect()}
-	case node.Operator == "!=":
+	case operator == "!=":
 		return &BooleanValue{Value: left.Inspect() != right.Inspect()}
 	default:
-		return &StringValue{Value: fmt.Sprintf("unknown operator: %s %s %s", left.Type(), node.Operator, right.Type())}
+		return &ErrorValue{Message: fmt.Sprintf("unknown operator: %s %s %s", left.Type(), operator, right.Type())}
 	}
 }
 
@@ -486,12 +549,22 @@ func evalStringInfixExpression(operator string, left, right Value) Value {
 
 // evalAssignmentExpression evaluates an assignment expression
 func (i *Interpreter) evalAssignmentExpression(node *ast.Assignment, env *Environment) Value {
+	// Check if the value is nil
+	if node.Value == nil {
+		return &ErrorValue{Message: "Cannot evaluate nil node"}
+	}
+
 	value := i.eval(node.Value, env)
+
+	// Check if the value is an error
+	if _, isError := value.(*ErrorValue); isError {
+		return value
+	}
 
 	// Set the value in the environment
 	err := env.Set(node.Name, value)
 	if err != nil {
-		return &StringValue{Value: err.Error()}
+		return &ErrorValue{Message: err.Error()}
 	}
 
 	return value
@@ -595,3 +668,12 @@ func isTruthy(obj Value) bool {
 		return true
 	}
 }
+
+// ErrorValue represents an error value
+type ErrorValue struct {
+	Message string
+}
+
+func (e *ErrorValue) Type() string { return "ERROR" }
+func (e *ErrorValue) Inspect() string { return "ERROR: " + e.Message }
+func (e *ErrorValue) VibeType() types.Type { return types.AnyType }
