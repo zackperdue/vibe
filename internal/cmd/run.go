@@ -1,12 +1,10 @@
 package cmd
 
 import (
-	"fmt"
 	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	"github.com/vibe-lang/vibe/internal/ui"
 	"github.com/vibe-lang/vibe/interpreter"
 	"github.com/vibe-lang/vibe/lexer"
@@ -54,14 +52,6 @@ func runProgram(source string, filename string) {
 	if len(errors) > 0 {
 		ui.PrintParserErrors(errors)
 		return
-	}
-
-	if viper.GetBool("debug") {
-		ui.HeadingColor.Println("Program AST:")
-		for i, stmt := range program.Statements {
-			fmt.Printf("Statement %d: %s\n", i, stmt.String())
-		}
-		fmt.Println()
 	}
 
 	// Create an interpreter and evaluate the program

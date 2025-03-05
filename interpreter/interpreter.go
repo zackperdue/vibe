@@ -585,7 +585,6 @@ func (i *Interpreter) evalIdentifier(node *ast.Identifier, env *Environment) Val
 
 func (i *Interpreter) evalPrintStatement(node *ast.PrintStmt, env *Environment) Value {
 	value := i.eval(node.Value, env)
-	fmt.Println(value.Inspect())
 	return value
 }
 
@@ -766,7 +765,7 @@ func (i *Interpreter) evalCallExpression(node *ast.CallExpr, env *Environment) V
 		// Check arity
 		if len(args) != len(builtin.ParamTypes) {
 			return &StringValue{Value: fmt.Sprintf(
-				"Wrong number of arguments: function '%s' expects %d, got %d",
+				"Error: wrong number of arguments: function '%s' expects %d, got %d",
 				builtin.Name, len(builtin.ParamTypes), len(args))}
 		}
 
